@@ -1,63 +1,42 @@
-# Art Direction — Canonical Visual Language
+# Art Direction — LOCKED VISUAL AUTHORITY
 
-**Source**: Project Cold Boot Game Design Document (Page 1 of 3) + Moodboard (key art, SCAN/SNAP/SUNDER, Auditor, Dual Reality, Tools, Sable, Authorship War).
+**Source images are canonical.** All rendering, materials, lighting, UI, and character presentation must stay true to the provided Game Design Document page and moodboard.
 
-These images are the visual authority for the vertical slice and all subsequent art.
+## Non-Negotiable Pillars
 
-## Visual Pillars (Locked)
+1. **Dual Reality Split**
+   - Left / Vesper 2026: sterile cyber-noir, cyan-teal neon, clean verticals, wet reflective streets
+   - Right / Necropolis 1994: ink-drenched gothic, deep purple-black, ash-night, stone decay
+   - Central **lightning bleed seam** (bright violet-white electrical tear)
 
-- **Ink-drenched Gothic ruins** (1994 Necropolis) — wet streets, heavy shadows, volcanic-ash night, stone and decay.
-- **Sterile cyber-noir megacity** (2026 Vesper City) — high-contrast neon, clean vertical architecture, reflective wet pavement, holographic signage.
-- **Violet / purple causal energy** — nodes, edges, glyph trails, SCAN highlights, SNAP chains, SUNDER bursts.
-- **Lightning bleed seams** — vertical electrical arcs where Layer 0 erupts into Layer 1.
-- **Adaptive Auditor overlays** — glitch, scan-lines, prediction percentage, causality lock indicators.
-- **Minimal diegetic HUD** — device in hand (SCAN), circular lens/compass (tools), sparse reticles.
-- **Dynamic corruption shaders** — ink-decay, bit-rot on edges, fragmented Sable portrait.
-- **Cinematic readability** — strong silhouettes, high contrast, clear causal lines over visual noise.
+2. **Causal Energy**
+   - Primary accent: electric violet / magenta-purple
+   - Nodes, SNAP chains, SUNDER bursts, glyph trails all use this energy
+   - High emission, readable at a glance
 
-## Key Reference Moments
+3. **Auditor Unit**
+   - Dark suit, white shirt, black tie
+   - Heavy glitch, scan-line, and digital corruption across body and face
+   - Calm, systemic, inevitable presence
+   - Detection / prediction readouts
 
-### Dual Reality Street
-Split composition: left = 2026 Vesper City (neon, clean), right = 1994 Necropolis (gothic, ink). Central lightning seam. Player stands in the bleed.
+4. **Sable**
+   - Young woman, dark hair
+   - Corrupted-code / glitch aesthetic (ink + violet)
+   - Emotional and mechanical anchor
+   - Direct, knowing gaze
 
-### Auditor Unit
-Dark suit, white shirt, black tie. Glitch/scan-line corruption across body and face. Detection / prediction meter (72–87%). Stance is calm, systemic, inevitable.
+5. **Tools**
+   - Noctro-Glyph, Gravity Anchor, Restorer’s Lens
+   - Geometric / sigil language, violet accents, diegetic feel
 
-### SCAN
-First-person view of handheld device or Restorer’s Lens. Purple wireframe nodes and hidden anchors revealed over dark industrial / street geometry.
+6. **Overall Mood**
+   - Cinematic high contrast
+   - Wet surfaces, strong speculars
+   - Minimal diegetic HUD
+   - Ink-decay and bit-rot as visual corruption language
+   - Never generic sci-fi; always this specific cyber-noir + gothic fusion
 
-### SNAP
-Hand drawing luminous purple causal links between floating nodes. Clean geometric graph overlaid on ruined or cyber environment.
+## Implementation Rule
 
-### SUNDER
-Explosive violet energy release along the chain. Debris, light trails, reality resolving. High kinetic payoff.
-
-### Sable
-Young woman, dark hair, corrupted-code aesthetic (glitch, ink, violet accents). Direct gaze. Emotional and mechanical anchor. Quote energy: “You’re not supposed to win by being right. You win by being unreadable.”
-
-### Tools
-- Noctro-Glyph: geometric / sigil interface, purple.
-- Gravity Anchor: nautical/anchor motif, momentum vectors.
-- Restorer’s Lens: circular optic, reveal cone.
-
-### Authorship War UI
-Triangular / alchemical sigil. Stability and Coherence percentages. “You are not the hero. You are the editor.”
-
-## Color & Material Notes
-
-- Primary accent: electric violet / magenta-purple (#8B5CF6 range and brighter).
-- Necropolis: deep blacks, wet asphalt, desaturated stone, occasional blood-red or amber practicals.
-- Vesper: cyan/teal neon secondary, pure white highlights, deep blue-black shadows.
-- Energy: pure luminous violet with white-hot cores on SUNDER.
-- Surfaces: wet, reflective, high specular on streets; matte ink-decay on Layer 0 structures.
-
-## Implementation Guidance (Vertical Slice)
-
-Gray-box is acceptable. Prioritize:
-1. Clear purple causal graph readability.
-2. Distinct Layer 0 vs Layer 1 material response (even if just two material sets).
-3. One strong lightning/bleed seam visual.
-4. Auditor silhouette + simple glitch material.
-5. Sable presence (billboard or simple mesh) with corruption shader.
-
-Production art comes after the loop is proven fun and deterministic.
+Any new mesh, material, light, VFX, or UI element must be checked against the reference images before merge. Gray-box is temporary scaffolding only. Final look = these images.

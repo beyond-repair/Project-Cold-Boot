@@ -1,25 +1,21 @@
 # Project Status
 
-**Version**: 1.9.4 — Cycle 4  
+**Version**: 1.9.5 — Cycle 5 (Art-Locked Visual Pass)  
 **Repository**: https://github.com/beyond-repair/Project-Cold-Boot
 
 ## Working
 
-- Main menu → vertical slice
-- SCAN / SNAP / SUNDER + Auditor + Sable + win state
-- **Two rooms** with transition (N)
-- **Kernel selection** (Final Commit / Force Revert / Keep Drafting) affecting Auditor
-- MutationLog history + panel
-- Dual SubViewport scaffold (Own World 3D)
-- DCB-style validation + quantized positions
+- Full vertical-slice loop + two rooms + Kernels
+- MutationLog history + Dual SubViewport scaffold
+- **Visual direction locked** to the provided GDD + moodboard images
+- Stronger violet causal energy, dual-layer color separation, intense bleed seam, darker atmosphere
 
-## Self-Review
+## Art Authority
 
-Cycles 1–4 passed. Continuing toward full game.
+See `docs/ART_DIRECTION.md`. The uploaded images are the single source of truth for look and feel for the entire game.
 
-## Next Cycles
+## Next
 
-5. File save/load of MutationLog + replay
-6. Compositor shader
-7. Gear input distinction
-8. GDExtension foundation
+Cycle 6: File save/load of MutationLog + basic replay
+Cycle 7: Compositor / bleed shader sampling SubViewports
+Cycle 8: Further mesh / VFX alignment to reference

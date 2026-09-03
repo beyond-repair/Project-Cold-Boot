@@ -1,32 +1,27 @@
 # Self-Review Checklist
 
-## Cycles 1–3 — PASSED
-## Cycle 4 — Second room + Kernel stub — PASSED
+## Cycles 1–4 — PASSED
+## Cycle 5 — Visual Fidelity Pass (Art-Locked) — PASSED
 
-### Cycle 4 Checklist
+### Cycle 5 Checklist
 
 - [x] Runs in Godot 4.2+
-- [x] SCAN → SNAP → SUNDER functional in both rooms
-- [x] Two distinct room layouts
-- [x] Transition via N after win
-- [x] Kernel selection (1/2/3) changes Auditor aggressiveness
-- [x] Kernel name + room status visible in UI
-- [x] History + validation + quantized positions retained
-- [x] Dual SubViewport scaffold retained
+- [x] Core loop intact
+- [x] Materials and emission pushed toward reference art (violet causal energy, dual-layer colors, dark wet floor)
+- [x] Bleed seam intensity increased to match lightning reference
+- [x] Auditor / Sable materials moved toward glitch / corrupted-code look
+- [x] ART_DIRECTION.md explicitly locks the provided images as sole visual authority
+- [x] No gameplay regressions
 - [x] Docs updated
-- [x] No critical regressions
 
-### Known limitations
+### Remaining visual gaps (explicit)
 
-- Rooms are still gray-box graphs (no unique art per room yet)
-- Kernel only modulates Auditor threshold (not full KBT rebind)
-- No persistent save between sessions
-- Compositor shader not yet sampling SubViewports
-- Still GDScript
+- Still primitive meshes (spheres / capsules) — final art will replace with proper models matching the moodboard
+- No full SubViewport compositor shader yet
+- No screen-space glitch/scanline post on Auditor
+- No hand-held tool models yet
+- Lighting is improved but not yet cinematic volumetric
 
-### Next
+### Rule going forward
 
-5. File-based MutationLog save/load + simple replay
-6. Compositor shader for dual-layer bleed
-7. Basic Gear distinction (Noctro-Glyph vs Gravity Anchor input)
-8. GDExtension skeleton
+Every visual change must be checked against the locked reference images before commit.
