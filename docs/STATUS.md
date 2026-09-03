@@ -1,6 +1,6 @@
 # Project Status
 
-**Version**: 1.8 — Executive Edition Locked + Visual Authority  
+**Version**: 1.8 + Vertical Slice Demo  
 **Repository**: https://github.com/beyond-repair/Project-Cold-Boot  
 **Owner**: beyond-repair
 
@@ -15,25 +15,27 @@
 - Gear of the Ancients (Items 1–3)
 - Solo-dev execution directive
 - Engineering Constitution
-- **Visual language** (GDD page + moodboard images as authority)
+- Visual language (GDD + moodboard)
 
-## In Progress
+## Working Demo (Now)
 
-- ActiveGraph realization
-- Vertical slice gray-box room
-- Minimal GES / MutationLog / DCB wiring
-- Dual-layer material / bleed proof
+- Godot 4.x vertical-slice project under `godot/`
+- Minimal MutationLog + commit simulation in GDScript
+- Playable SCAN / SNAP / SUNDER loop with Auditor lock + Sable reveal
+- Dual-layer node colors + bleed seam
+- Frame hash feedback
+- See `docs/DEMO.md` for run instructions
 
 ## Next Immediate
 
-1. Vertical slice implementation (see `docs/VERTICAL_SLICE.md` + `docs/VERTICAL_SLICE_VISUAL.md`)
-2. Basic dual-layer shader / material proof matching art direction
-3. Replay harness for determinism proof
+1. Playtest and tighten the gray-box feel
+2. Replace GDScript simulation with real ActiveGraph / DCB stubs
+3. Dual-layer material / simple ink-bleed shader
+4. Replay harness (record input + MutationLog, verify hash)
 
-## Out of Scope Until Slice Validated
+## Out of Scope Until Slice Feels Good
 
-- Full 7-operator toolkit expansion
-- Multi-Kernel mid-game divergence
-- Procedural district generation
-- Production art / audio pipeline
-- Multiplayer or external tooling marketplace
+- Full C++ GDExtension
+- Procedural generation
+- Production art / audio
+- Multiple Kernels
