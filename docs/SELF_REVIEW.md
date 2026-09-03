@@ -1,32 +1,32 @@
 # Self-Review Checklist
 
-## Cycle 1 — Architecture-Aligned Simulation Hardening — PASSED
-## Cycle 2 — MutationLog history + panel — PASSED
-## Cycle 3 — Dual SubViewport scaffold — PASSED
+## Cycles 1–3 — PASSED
+## Cycle 4 — Second room + Kernel stub — PASSED
 
-### Cycle 3 Checklist
+### Cycle 4 Checklist
 
 - [x] Runs in Godot 4.2+
-- [x] SCAN → SNAP → SUNDER still fully functional
-- [x] SubViewport_Layer0 and SubViewport_Layer1 present
-- [x] own_world_3d = true on both (Architecture requirement)
-- [x] Separate WorldEnvironment for gothic vs cyber-noir
-- [x] Camera sync in _process (main → L0/L1)
-- [x] History panel retained
-- [x] No regressions
-- [x] Clear documentation of remaining compositor work
+- [x] SCAN → SNAP → SUNDER functional in both rooms
+- [x] Two distinct room layouts
+- [x] Transition via N after win
+- [x] Kernel selection (1/2/3) changes Auditor aggressiveness
+- [x] Kernel name + room status visible in UI
+- [x] History + validation + quantized positions retained
+- [x] Dual SubViewport scaffold retained
+- [x] Docs updated
+- [x] No critical regressions
 
-### Known limitations (explicit)
+### Known limitations
 
-- SubViewports exist and are isolated but not yet fed into a full-screen compositor shader
-- Graph geometry still lives on the main world (next: migrate or mirror into viewports)
+- Rooms are still gray-box graphs (no unique art per room yet)
+- Kernel only modulates Auditor threshold (not full KBT rebind)
+- No persistent save between sessions
+- Compositor shader not yet sampling SubViewports
 - Still GDScript
-- Single room
-- No file replay yet
 
-### Next cycle targets
+### Next
 
-4. Second room + simple transition / Kernel stub
-5. Basic file save/load of MutationLog history
-6. Compositor shader that samples both SubViewport textures + bleed
-7. GDExtension skeleton
+5. File-based MutationLog save/load + simple replay
+6. Compositor shader for dual-layer bleed
+7. Basic Gear distinction (Noctro-Glyph vs Gravity Anchor input)
+8. GDExtension skeleton

@@ -1,32 +1,33 @@
-# How to Play the Current Build
+# How to Play (Current Build — Cycle 4)
 
 ## Run
 
 1. Godot 4.2+
-2. Open the `godot/` folder
-3. Press F5
-
-## Flow
-
-- Main menu → **ENTER THE MANUSCRIPT**
-- Vertical slice room loads
+2. Open `godot/` folder
+3. F5
 
 ## Controls
 
 | Input | Action |
 |-------|--------|
 | **E** | SCAN |
-| **Left Mouse** | SNAP (click two nodes) |
+| **Left Mouse** | SNAP (select two nodes) |
 | **Space** | SUNDER |
-| **R** | Reset room |
-| **Esc** | Pause / Resume |
+| **R** | Reset current run |
+| **Esc** | Pause |
+| **H** | Toggle history panel |
+| **1 / 2 / 3** | Select Kernel (Final Commit / Force Revert / Keep Drafting) |
+| **N** | Go to next room (after win) |
 
 ## Objective
 
-1. SCAN to reveal anchors.
-2. SNAP links between nodes. An Auditor will lock one node after you start connecting.
-3. Form a path from **Lamp (0)** to **Gate (3)**.
-4. SUNDER. Gate opens → Sable appears → win panel.
-5. R to replay or Esc to pause.
+- Room 1: Connect node 0 (Lamp) to the Gate via SNAP links, then SUNDER.
+- Auditor will lock a node (timing depends on Kernel).
+- After win, press **N** to enter Room 2 (different layout).
+- Kernels change how early the Auditor intervenes.
 
-This is the hardened vertical slice. Full campaign, gear, shaders, and DLRSE core continue on top of this foundation.
+## Kernels
+
+- **1 Final Commit** — Auditor locks early (aggressive)
+- **2 Force Revert** — Medium
+- **3 Keep Drafting** — More tolerant (locks later)

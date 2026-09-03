@@ -1,11 +1,13 @@
 extends Node3D
-## Vertical Slice — Cycle 3: Dual SubViewport scaffold active.
+## Vertical Slice — Cycle 4: multi-room + Kernel.
 
 @onready var status_label: Label = $UI/StatusLabel
 @onready var help_label: Label = $UI/HelpLabel
 @onready var hash_label: Label = $UI/HashLabel
 @onready var objective_label: Label = $UI/ObjectiveLabel
 @onready var history_label: Label = $UI/HistoryLabel
+@onready var kernel_label: Label = $UI/KernelLabel
+@onready var room_label: Label = $UI/RoomLabel
 @onready var node_container: Node3D = $GraphNodes
 @onready var edge_container: Node3D = $GraphEdges
 @onready var auditor_mesh: MeshInstance3D = $Auditor
@@ -32,16 +34,19 @@ func _ready() -> void:
 	GameState.frame_committed.connect(_on_committed)
 	GameState.validation_failed.connect(_on_validation_failed)
 	GameState.demo_won.connect(_on_win)
+	GameState.room_changed.connect(_on_room_changed)
+	GameState.kernel_changed.connect(_on_kernel_changed)
 	win_panel.visible = false
 	pause_panel.visible = false
 	history_label.visible = show_history
 	_rebuild_visuals()
 	_update_objective()
-	_update_ui("Press E to SCAN and reveal the causal anchors.")
-	help_label.text = "E = SCAN | LMB = SNAP | SPACE = SUNDER | R = Reset | Esc = Pause | H = History"
+	_update_kernel_ui()
+	_update_room_ui()
+	_update_ui("Press E to SCAN. 1/2/3 = Kernel. N = next room after win.")
+	help_label.text = "E=SCAN LMB=SNAP SPACE=SUNDER R=Reset Esc=Pause H=History | 1/2/3=Kernel N=NextRoom"
 
 func _process(_delta: float) -> void:
-	# Keep dual-layer cameras in sync with main camera (Architecture requirement)
 	if cam_main and cam_l0 and cam_l1:
 		cam_l0.global_transform = cam_main.global_transform
 		cam_l1.global_transform = cam_main.global_transform
@@ -50,10 +55,32 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("pause_menu"):
 		_toggle_pause()
 		return
-	if event is InputEventKey and event.pressed and event.keycode == KEY_H:
-		show_history = not show_history
-		history_label.visible = show_history
-		return
+	if event is InputEventKey and event.pressed:
+		match event.keycode:
+			KEY_H:
+				show_history = not show_history
+				history_label.visible = show_history
+				return
+			KEY_1:
+				GameState.set_kernel(GameState.Kernel.FINAL_COMMIT)
+				return
+			KEY_2:
+				GameState.set_kernel(GameState.Kernel.FORCE_REVERT)
+				return
+			KEY_3:
+				GameState.set_kernel(GameState.Kernel.KEEP_DRAFTING)
+				return
+			KEY_N:
+				if demo_complete or GameState.gate_is_open:
+					var next_room = 2 if GameState.current_room == 1 else 1
+					GameState.go_to_room(next_room)
+					demo_complete = false
+					auditor_mesh.visible = false
+					sable_mesh.visible = false
+					win_panel.visible = false
+					selected_node = -1
+					_update_ui("Entered Room %d. Press E to SCAN." % next_room)
+				return
 	if paused:
 		return
 	if demo_complete and not event.is_action_pressed("reset_demo"):
@@ -82,6 +109,7 @@ func _reset() -> void:
 	_update_ui("Demo reset. Press E to SCAN.")
 	_update_objective()
 	_update_history()
+	_update_room_ui()
 
 func _do_scan() -> void:
 	if GameState.scanned:
@@ -92,13 +120,13 @@ func _do_scan() -> void:
 	if not GameState.commit_frame():
 		_update_ui("SCAN rejected: %s" % GameState.last_reject_reason)
 		return
-	_update_ui("SCAN complete. Click two nodes to create a causal SNAP link.")
+	_update_ui("SCAN complete. Click two nodes to SNAP.")
 	_update_objective()
 	_update_history()
 
 func _try_select_node() -> void:
 	if not GameState.scanned:
-		_update_ui("Scan first (E) to reveal anchors.")
+		_update_ui("Scan first (E).")
 		return
 	var cam := get_viewport().get_camera_3d()
 	if cam == null:
@@ -115,11 +143,11 @@ func _try_select_node() -> void:
 	if collider and collider.has_meta("node_id"):
 		var id: int = collider.get_meta("node_id")
 		if GameState.nodes[id].locked:
-			_update_ui("Node %d is locked by an Auditor. Find another path." % id)
+			_update_ui("Node %d locked by Auditor. Adapt." % id)
 			return
 		if selected_node == -1:
 			selected_node = id
-			_update_ui("Selected [%d] %s. Click another node to SNAP." % [id, GameState.nodes[id].label])
+			_update_ui("Selected [%d] %s. Click another to SNAP." % [id, GameState.nodes[id].label])
 		elif selected_node != id:
 			_do_snap(selected_node, id)
 			selected_node = -1
@@ -127,8 +155,10 @@ func _try_select_node() -> void:
 func _do_snap(from_id: int, to_id: int) -> void:
 	GameState.begin_frame()
 	GameState.log_mutation("SNAP", from_id, to_id, [], 0)
-	if GameState.snap_count == 1 and not GameState.auditor_active:
-		GameState.log_mutation("AUD_LOCK", 2, -1, [], 2)
+	var threshold = GameState.get_auditor_lock_threshold()
+	if GameState.snap_count >= threshold and not GameState.auditor_active:
+		var lock_target = 2 if GameState.nodes.size() > 2 else 1
+		GameState.log_mutation("AUD_LOCK", lock_target, -1, [], 2)
 	if not GameState.commit_frame():
 		_update_ui("SNAP rejected: %s" % GameState.last_reject_reason)
 		return
@@ -137,7 +167,7 @@ func _do_snap(from_id: int, to_id: int) -> void:
 
 func _do_sunder() -> void:
 	if GameState.edges.is_empty():
-		_update_ui("No chains to SUNDER. Create SNAP links first.")
+		_update_ui("No chains to SUNDER.")
 		return
 	GameState.begin_frame()
 	GameState.log_mutation("SUNDER", 0, -1, [], 0)
@@ -151,23 +181,31 @@ func _on_scan() -> void:
 	bleed_seam.visible = true
 
 func _on_snap(from_id: int, to_id: int) -> void:
-	_update_ui("SNAP created: %d → %d. Path to Gate required for SUNDER resolution." % [from_id, to_id])
+	_update_ui("SNAP: %d → %d" % [from_id, to_id])
 
 func _on_sunder(chain: Array) -> void:
 	if GameState.gate_is_open:
-		_update_ui("SUNDER resolved. Gate OPEN.")
+		_update_ui("SUNDER resolved. Exit OPEN. Press N for next room.")
 	else:
-		_update_ui("SUNDER executed (%d links). No path from Lamp (0) to Gate (3) yet." % chain.size())
+		_update_ui("SUNDER (%d links). Path from 0 to exit not complete." % chain.size())
 
 func _on_auditor() -> void:
 	auditor_mesh.visible = true
-	_update_ui("AUDITOR lock applied. One node is now unusable. Adapt.")
+	_update_ui("AUDITOR lock applied (Kernel: %s)." % GameState.get_kernel_name())
 
 func _on_win() -> void:
 	demo_complete = true
 	sable_mesh.visible = true
 	win_panel.visible = true
-	_update_ui("Manuscript fragment rewritten. Sable acknowledges the Cold Boot.")
+	_update_ui("Room %d rewritten. Press N for next room or R to reset." % GameState.current_room)
+
+func _on_room_changed(room_id: int) -> void:
+	_update_room_ui()
+	bleed_seam.visible = false
+
+func _on_kernel_changed(kernel_name: String) -> void:
+	_update_kernel_ui()
+	_update_ui("Kernel set to: %s" % kernel_name)
 
 func _on_committed(_fid: int, h: int) -> void:
 	hash_label.text = "Hash: %d | Edges: %d | Sunders: %d | Frame: %d" % [h, GameState.edges.size(), GameState.sunder_count, _fid]
@@ -183,12 +221,18 @@ func _update_objective() -> void:
 	if not GameState.scanned:
 		objective_label.text = "Objective: SCAN the room (E)"
 	elif not GameState.gate_is_open:
-		objective_label.text = "Objective: Connect Lamp (0) to Gate (3) with SNAP links, then SUNDER (Space)"
+		objective_label.text = "Objective: Connect node 0 to exit node with SNAP, then SUNDER"
 	else:
-		objective_label.text = "Objective: Complete — Gate is open"
+		objective_label.text = "Objective: Room complete — Press N for next room"
 
 func _update_history() -> void:
-	history_label.text = "History (last records):\n" + GameState.get_history_summary()
+	history_label.text = "History:\n" + GameState.get_history_summary()
+
+func _update_kernel_ui() -> void:
+	kernel_label.text = "Kernel: %s (1/2/3 to change)" % GameState.get_kernel_name()
+
+func _update_room_ui() -> void:
+	room_label.text = "Room: %d | Completed: %d" % [GameState.current_room, GameState.rooms_completed]
 
 func _rebuild_visuals() -> void:
 	for c in node_container.get_children():
@@ -216,7 +260,7 @@ func _rebuild_visuals() -> void:
 			mat.albedo_color = Color(0.9, 0.15, 0.15)
 			mat.emission = Color(1.0, 0.1, 0.1)
 			mat.emission_energy_multiplier = 3.0
-		if n.id == 3 and GameState.gate_is_open:
+		if str(n.label).ends_with("_OPEN"):
 			mat.albedo_color = Color(0.2, 0.9, 0.4)
 			mat.emission = Color(0.3, 1.0, 0.5)
 		mi.material_override = mat
@@ -248,9 +292,6 @@ func _rebuild_visuals() -> void:
 		mat.emission_enabled = true
 		mat.emission = Color(0.75, 0.25, 1.0)
 		mat.emission_energy_multiplier = 4.0
-		if e.corrupted:
-			mat.albedo_color = Color(1.0, 0.25, 0.25)
-			mat.emission = Color(1.0, 0.2, 0.2)
 		mi.material_override = mat
 		mi.position = (from_pos + to_pos) / 2.0
 		mi.look_at(to_pos, Vector3.UP)

@@ -1,7 +1,5 @@
 extends Node
-## Architecture-aligned DLRSE simulation (Cycle 2).
-## Log-only emission → validate → single-writer commit.
-## Quantized positions + MutationLog history for replay/debug.
+## DLRSE simulation — Cycle 4: multi-room + Kernel stub.
 
 signal graph_changed
 signal frame_committed(frame_id: int, hash: int)
@@ -12,14 +10,18 @@ signal sunder_executed(chain: Array)
 signal auditor_intervened
 signal gate_opened
 signal demo_won
+signal room_changed(room_id: int)
+signal kernel_changed(kernel_name: String)
 
 const QUANT_SCALE := 1000
 const MAX_MUTATIONS_PER_FRAME := 16
 const MAX_HISTORY := 64
 
+enum Kernel { FINAL_COMMIT, FORCE_REVERT, KEEP_DRAFTING }
+
 var frame_id: int = 0
 var mutation_log: Array[Dictionary] = []
-var history: Array[Dictionary] = []          # retained committed records
+var history: Array[Dictionary] = []
 var nodes: Array[Dictionary] = []
 var edges: Array[Dictionary] = []
 var scanned: bool = false
@@ -29,9 +31,24 @@ var gate_is_open: bool = false
 var last_hash: int = 0
 var snap_count: int = 0
 var last_reject_reason: String = ""
+var current_room: int = 1
+var current_kernel: Kernel = Kernel.FINAL_COMMIT
+var rooms_completed: int = 0
 
 func _ready() -> void:
 	reset_demo()
+
+func set_kernel(k: Kernel) -> void:
+	current_kernel = k
+	var names = ["Final Commit", "Force Revert", "Keep Drafting"]
+	kernel_changed.emit(names[k])
+
+func get_kernel_name() -> String:
+	match current_kernel:
+		Kernel.FINAL_COMMIT: return "Final Commit"
+		Kernel.FORCE_REVERT: return "Force Revert"
+		Kernel.KEEP_DRAFTING: return "Keep Drafting"
+	return "Unknown"
 
 func reset_demo() -> void:
 	frame_id = 0
@@ -46,12 +63,40 @@ func reset_demo() -> void:
 	last_hash = 0
 	snap_count = 0
 	last_reject_reason = ""
-	_add_node(0, _q(Vector3(-4, 0, 0)), 1, "Vesper_Lamp")
-	_add_node(1, _q(Vector3(-1.5, 0, 2)), 1, "Vesper_Conduit")
-	_add_node(2, _q(Vector3(1.5, 0, 1)), 0, "Necro_Spire")
-	_add_node(3, _q(Vector3(4, 0, -1)), 1, "Vesper_Gate")
-	_add_node(4, _q(Vector3(0, 0, -3)), 0, "Necro_Anchor")
+	current_room = 1
+	rooms_completed = 0
+	_load_room(1)
 	graph_changed.emit()
+
+func go_to_room(room_id: int) -> void:
+	current_room = room_id
+	mutation_log.clear()
+	edges.clear()
+	scanned = false
+	sunder_count = 0
+	auditor_active = false
+	gate_is_open = false
+	snap_count = 0
+	_load_room(room_id)
+	room_changed.emit(room_id)
+	graph_changed.emit()
+
+func _load_room(room_id: int) -> void:
+	nodes.clear()
+	if room_id == 1:
+		_add_node(0, _q(Vector3(-4, 0, 0)), 1, "Vesper_Lamp")
+		_add_node(1, _q(Vector3(-1.5, 0, 2)), 1, "Vesper_Conduit")
+		_add_node(2, _q(Vector3(1.5, 0, 1)), 0, "Necro_Spire")
+		_add_node(3, _q(Vector3(4, 0, -1)), 1, "Vesper_Gate")
+		_add_node(4, _q(Vector3(0, 0, -3)), 0, "Necro_Anchor")
+	else:
+		# Room 2 — different layout, more Necropolis influence
+		_add_node(0, _q(Vector3(-3, 0, 1)), 0, "Necro_Root")
+		_add_node(1, _q(Vector3(0, 0, 2.5)), 1, "Vesper_Relay")
+		_add_node(2, _q(Vector3(3, 0, 0.5)), 0, "Necro_Vault")
+		_add_node(3, _q(Vector3(0, 0, -2.5)), 1, "Vesper_Exit")
+		_add_node(4, _q(Vector3(-2, 0, -1)), 0, "Necro_Echo")
+		_add_node(5, _q(Vector3(2, 0, -1.5)), 1, "Vesper_Lock")
 
 func _q(v: Vector3) -> Vector3i:
 	return Vector3i(int(round(v.x * QUANT_SCALE)), int(round(v.y * QUANT_SCALE)), int(round(v.z * QUANT_SCALE)))
@@ -60,11 +105,7 @@ func _fq(qi: Vector3i) -> Vector3:
 	return Vector3(float(qi.x) / QUANT_SCALE, float(qi.y) / QUANT_SCALE, float(qi.z) / QUANT_SCALE)
 
 func _add_node(id: int, qpos: Vector3i, layer: int, label: String) -> void:
-	nodes.append({
-		"id": id, "qpos": qpos, "layer": layer, "label": label,
-		"active": true, "revealed": false, "locked": false,
-		"domain": [1.0, 0.0, 0.0, 0.0]
-	})
+	nodes.append({"id": id, "qpos": qpos, "layer": layer, "label": label, "active": true, "revealed": false, "locked": false, "domain": [1.0, 0.0, 0.0, 0.0]})
 
 func get_node_pos(id: int) -> Vector3:
 	if id < 0 or id >= nodes.size():
@@ -76,10 +117,7 @@ func begin_frame() -> void:
 	last_reject_reason = ""
 
 func log_mutation(op_type: String, node_id: int, edge_id: int = -1, payload: Array = [], priority: int = 0) -> void:
-	mutation_log.append({
-		"frame": frame_id, "seq": mutation_log.size(), "priority": priority,
-		"op": op_type, "node": node_id, "edge": edge_id, "payload": payload
-	})
+	mutation_log.append({"frame": frame_id, "seq": mutation_log.size(), "priority": priority, "op": op_type, "node": node_id, "edge": edge_id, "payload": payload})
 
 func commit_frame() -> bool:
 	if not _validate_budget():
@@ -97,7 +135,6 @@ func commit_frame() -> bool:
 
 	for rec in mutation_log:
 		_apply(rec)
-		# Retain history for replay / debug
 		history.append(rec.duplicate(true))
 		if history.size() > MAX_HISTORY:
 			history.pop_front()
@@ -165,11 +202,13 @@ func _apply(rec: Dictionary) -> void:
 					chain.append(e)
 			sunder_count += 1
 			sunder_executed.emit(chain)
-			if _has_path(0, 3):
-				nodes[3]["label"] = "Vesper_Gate_OPEN"
+			var target_id = 3 if current_room == 1 else 3
+			if _has_path(0, target_id):
+				nodes[target_id]["label"] = nodes[target_id].label + "_OPEN"
 				gate_is_open = true
 				gate_opened.emit()
 				demo_won.emit()
+				rooms_completed += 1
 		"AUD_LOCK":
 			var nid: int = rec.node
 			if nid >= 0 and nid < nodes.size():
@@ -197,7 +236,7 @@ func _has_path(from_id: int, to_id: int) -> bool:
 	return false
 
 func _compute_hash() -> int:
-	var h := 0xCB94F00D
+	var h := 0xCB94F00D ^ (current_kernel * 997) ^ (current_room * 131)
 	for n in nodes:
 		h = (h * 31 + n.id) ^ (n.layer * 17)
 		h = h ^ (n.qpos.x + n.qpos.y * 3 + n.qpos.z * 7)
@@ -214,3 +253,11 @@ func get_history_summary() -> String:
 		var r = history[i]
 		lines.append("%d:%s n=%d e=%d" % [r.frame, r.op, r.node, r.edge])
 	return "\n".join(lines)
+
+# Kernel-modulated Auditor aggression
+func get_auditor_lock_threshold() -> int:
+	match current_kernel:
+		Kernel.FINAL_COMMIT: return 1   # locks early
+		Kernel.FORCE_REVERT: return 2
+		Kernel.KEEP_DRAFTING: return 3  # more tolerant
+	return 1
