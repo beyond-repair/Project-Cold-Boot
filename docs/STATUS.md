@@ -1,7 +1,7 @@
 # Project Status
 
-**Version**: 1.8 — Executive Edition Locked  
-**Date**: 2026-07 / 2026-09 continuity  
+**Version**: 1.8 — Executive Edition Locked + Visual Authority  
+**Repository**: https://github.com/beyond-repair/Project-Cold-Boot  
 **Owner**: beyond-repair
 
 ## Locked
@@ -15,17 +15,19 @@
 - Gear of the Ancients (Items 1–3)
 - Solo-dev execution directive
 - Engineering Constitution
+- **Visual language** (GDD page + moodboard images as authority)
 
 ## In Progress
 
 - ActiveGraph realization
 - Vertical slice gray-box room
 - Minimal GES / MutationLog / DCB wiring
+- Dual-layer material / bleed proof
 
 ## Next Immediate
 
-1. Vertical slice implementation (see `docs/VERTICAL_SLICE.md`)
-2. Basic dual-layer shader / material proof
+1. Vertical slice implementation (see `docs/VERTICAL_SLICE.md` + `docs/VERTICAL_SLICE_VISUAL.md`)
+2. Basic dual-layer shader / material proof matching art direction
 3. Replay harness for determinism proof
 
 ## Out of Scope Until Slice Validated
