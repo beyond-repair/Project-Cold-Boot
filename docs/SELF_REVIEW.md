@@ -1,31 +1,33 @@
-# Self-Review Checklist (Cycle 1+)
+# Self-Review Checklist
 
-## Cycle 1 — Architecture-Aligned Simulation Hardening
+## Cycle 1 — Architecture-Aligned Simulation Hardening — PASSED
+
+## Cycle 2 — Dual-layer readiness + MutationLog history — PASSED
 
 ### Checklist
 
 - [x] Runs in Godot 4.2+
 - [x] SCAN → SNAP → SUNDER loop functional
-- [x] Log → validate → commit path present
-- [x] Explicit budget / partition / sanity validation
-- [x] Quantized positions (scale 1000) stored
-- [x] Priority ordering (player vs auditor)
-- [x] Reject path surfaces reason to UI
-- [x] README / DEMO / STATUS still accurate
-- [x] No half-wired features in this increment
-- [x] Matches spirit of docs/ARCHITECTURE.md (log-only, single-writer, validation)
+- [x] Log → validate → commit path present and stricter
+- [x] MutationLog history retained (last 64)
+- [x] In-game history panel (toggle with H)
+- [x] Quantized positions retained
+- [x] Priority ordering + reject reasons
+- [x] Docs updated
+- [x] No regressions in playability
+- [x] Aligns with ARCHITECTURE.md (history for future replay, dual-layer prep)
 
-### Known limitations (documented, not hidden)
+### Known limitations (explicit)
 
-- Still GDScript simulation (not yet GDExtension C++)
-- AC-3/AC-4.1 not fully implemented (simple path check only)
-- Single room only
-- No dual SubViewport yet
-- No save/replay file I/O yet
+- Dual SubViewport nodes not yet wired for full Own World 3D rendering (scaffold next)
+- Still pure GDScript (GDExtension pending)
+- No file-based save/load of history yet
+- Single room
+- AC-4.1 not present (path check only)
 
 ### Next cycle targets
 
-- Dual SubViewport scaffold (Own World 3D)
-- Second room or explicit Kernel stub
-- MutationLog history retained for replay panel
-- Stricter self-review on naming and folder layout
+3. Actual Dual SubViewport (Own World 3D) + simple compositor notes
+4. Second room + transition
+5. Basic file replay (save/load MutationLog)
+6. GDExtension skeleton

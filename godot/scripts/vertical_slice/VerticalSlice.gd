@@ -1,10 +1,11 @@
 extends Node3D
-## Vertical Slice controller — architecture-aligned, review-ready.
+## Vertical Slice controller — Cycle 2 (history panel + dual-layer readiness).
 
 @onready var status_label: Label = $UI/StatusLabel
 @onready var help_label: Label = $UI/HelpLabel
 @onready var hash_label: Label = $UI/HashLabel
 @onready var objective_label: Label = $UI/ObjectiveLabel
+@onready var history_label: Label = $UI/HistoryLabel
 @onready var node_container: Node3D = $GraphNodes
 @onready var edge_container: Node3D = $GraphEdges
 @onready var auditor_mesh: MeshInstance3D = $Auditor
@@ -17,6 +18,7 @@ var selected_node: int = -1
 var node_meshes: Dictionary = {}
 var demo_complete: bool = false
 var paused: bool = false
+var show_history: bool = true
 
 func _ready() -> void:
 	GameState.graph_changed.connect(_rebuild_visuals)
@@ -29,14 +31,19 @@ func _ready() -> void:
 	GameState.demo_won.connect(_on_win)
 	win_panel.visible = false
 	pause_panel.visible = false
+	history_label.visible = show_history
 	_rebuild_visuals()
 	_update_objective()
 	_update_ui("Press E to SCAN and reveal the causal anchors.")
-	help_label.text = "E = SCAN | LMB = SNAP | SPACE = SUNDER | R = Reset | Esc = Pause"
+	help_label.text = "E = SCAN | LMB = SNAP | SPACE = SUNDER | R = Reset | Esc = Pause | H = History"
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("pause_menu"):
 		_toggle_pause()
+		return
+	if event is InputEventKey and event.pressed and event.keycode == KEY_H:
+		show_history = not show_history
+		history_label.visible = show_history
 		return
 	if paused:
 		return
@@ -65,6 +72,7 @@ func _reset() -> void:
 	win_panel.visible = false
 	_update_ui("Demo reset. Press E to SCAN.")
 	_update_objective()
+	_update_history()
 
 func _do_scan() -> void:
 	if GameState.scanned:
@@ -77,6 +85,7 @@ func _do_scan() -> void:
 		return
 	_update_ui("SCAN complete. Click two nodes to create a causal SNAP link.")
 	_update_objective()
+	_update_history()
 
 func _try_select_node() -> void:
 	if not GameState.scanned:
@@ -110,11 +119,12 @@ func _do_snap(from_id: int, to_id: int) -> void:
 	GameState.begin_frame()
 	GameState.log_mutation("SNAP", from_id, to_id, [], 0)
 	if GameState.snap_count == 1 and not GameState.auditor_active:
-		GameState.log_mutation("AUD_LOCK", 2, -1, [], 2)  # priority 2 = auditor
+		GameState.log_mutation("AUD_LOCK", 2, -1, [], 2)
 	if not GameState.commit_frame():
 		_update_ui("SNAP rejected: %s" % GameState.last_reject_reason)
 		return
 	_update_objective()
+	_update_history()
 
 func _do_sunder() -> void:
 	if GameState.edges.is_empty():
@@ -126,6 +136,7 @@ func _do_sunder() -> void:
 		_update_ui("SUNDER rejected: %s" % GameState.last_reject_reason)
 		return
 	_update_objective()
+	_update_history()
 
 func _on_scan() -> void:
 	bleed_seam.visible = true
@@ -151,6 +162,7 @@ func _on_win() -> void:
 
 func _on_committed(_fid: int, h: int) -> void:
 	hash_label.text = "Hash: %d | Edges: %d | Sunders: %d | Frame: %d" % [h, GameState.edges.size(), GameState.sunder_count, _fid]
+	_update_history()
 
 func _on_validation_failed(reason: String) -> void:
 	_update_ui("Validation failed: %s" % reason)
@@ -165,6 +177,9 @@ func _update_objective() -> void:
 		objective_label.text = "Objective: Connect Lamp (0) to Gate (3) with SNAP links, then SUNDER (Space)"
 	else:
 		objective_label.text = "Objective: Complete — Gate is open"
+
+func _update_history() -> void:
+	history_label.text = "History (last records):\n" + GameState.get_history_summary()
 
 func _rebuild_visuals() -> void:
 	for c in node_container.get_children():

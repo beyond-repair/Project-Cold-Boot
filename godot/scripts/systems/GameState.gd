@@ -1,7 +1,7 @@
 extends Node
-## Minimal but architecture-aligned DLRSE simulation.
+## Architecture-aligned DLRSE simulation (Cycle 2).
 ## Log-only emission → validate → single-writer commit.
-## Positions stored quantized (scale 1000) for cross-platform path.
+## Quantized positions + MutationLog history for replay/debug.
 
 signal graph_changed
 signal frame_committed(frame_id: int, hash: int)
@@ -15,9 +15,11 @@ signal demo_won
 
 const QUANT_SCALE := 1000
 const MAX_MUTATIONS_PER_FRAME := 16
+const MAX_HISTORY := 64
 
 var frame_id: int = 0
 var mutation_log: Array[Dictionary] = []
+var history: Array[Dictionary] = []          # retained committed records
 var nodes: Array[Dictionary] = []
 var edges: Array[Dictionary] = []
 var scanned: bool = false
@@ -34,6 +36,7 @@ func _ready() -> void:
 func reset_demo() -> void:
 	frame_id = 0
 	mutation_log.clear()
+	history.clear()
 	nodes.clear()
 	edges.clear()
 	scanned = false
@@ -43,7 +46,6 @@ func reset_demo() -> void:
 	last_hash = 0
 	snap_count = 0
 	last_reject_reason = ""
-	# Quantized positions (stored as int, converted on read for rendering)
 	_add_node(0, _q(Vector3(-4, 0, 0)), 1, "Vesper_Lamp")
 	_add_node(1, _q(Vector3(-1.5, 0, 2)), 1, "Vesper_Conduit")
 	_add_node(2, _q(Vector3(1.5, 0, 1)), 0, "Necro_Spire")
@@ -52,28 +54,15 @@ func reset_demo() -> void:
 	graph_changed.emit()
 
 func _q(v: Vector3) -> Vector3i:
-	return Vector3i(
-		int(round(v.x * QUANT_SCALE)),
-		int(round(v.y * QUANT_SCALE)),
-		int(round(v.z * QUANT_SCALE))
-	)
+	return Vector3i(int(round(v.x * QUANT_SCALE)), int(round(v.y * QUANT_SCALE)), int(round(v.z * QUANT_SCALE)))
 
 func _fq(qi: Vector3i) -> Vector3:
-	return Vector3(
-		float(qi.x) / QUANT_SCALE,
-		float(qi.y) / QUANT_SCALE,
-		float(qi.z) / QUANT_SCALE
-	)
+	return Vector3(float(qi.x) / QUANT_SCALE, float(qi.y) / QUANT_SCALE, float(qi.z) / QUANT_SCALE)
 
 func _add_node(id: int, qpos: Vector3i, layer: int, label: String) -> void:
 	nodes.append({
-		"id": id,
-		"qpos": qpos,
-		"layer": layer,
-		"label": label,
-		"active": true,
-		"revealed": false,
-		"locked": false,
+		"id": id, "qpos": qpos, "layer": layer, "label": label,
+		"active": true, "revealed": false, "locked": false,
 		"domain": [1.0, 0.0, 0.0, 0.0]
 	})
 
@@ -87,19 +76,12 @@ func begin_frame() -> void:
 	last_reject_reason = ""
 
 func log_mutation(op_type: String, node_id: int, edge_id: int = -1, payload: Array = [], priority: int = 0) -> void:
-	var rec := {
-		"frame": frame_id,
-		"seq": mutation_log.size(),
-		"priority": priority,  # 0=GES/player, 1=constraint, 2=auditor
-		"op": op_type,
-		"node": node_id,
-		"edge": edge_id,
-		"payload": payload
-	}
-	mutation_log.append(rec)
+	mutation_log.append({
+		"frame": frame_id, "seq": mutation_log.size(), "priority": priority,
+		"op": op_type, "node": node_id, "edge": edge_id, "payload": payload
+	})
 
 func commit_frame() -> bool:
-	# --- DCB-style validation suite ---
 	if not _validate_budget():
 		return _reject("Budget exceeded")
 	if not _validate_partitions():
@@ -107,7 +89,6 @@ func commit_frame() -> bool:
 	if not _validate_graph_sanity():
 		return _reject("Graph sanity failed")
 
-	# Deterministic order: priority then sequence
 	mutation_log.sort_custom(func(a, b):
 		if a.priority != b.priority:
 			return a.priority < b.priority
@@ -116,6 +97,10 @@ func commit_frame() -> bool:
 
 	for rec in mutation_log:
 		_apply(rec)
+		# Retain history for replay / debug
+		history.append(rec.duplicate(true))
+		if history.size() > MAX_HISTORY:
+			history.pop_front()
 
 	frame_id += 1
 	last_hash = _compute_hash()
@@ -143,7 +128,6 @@ func _validate_partitions() -> bool:
 	return true
 
 func _validate_graph_sanity() -> bool:
-	# Pre-apply sanity: SNAP must not target locked nodes
 	for rec in mutation_log:
 		if rec.op == "SNAP":
 			var a: int = rec.node
@@ -222,3 +206,11 @@ func _compute_hash() -> int:
 	for e in edges:
 		h = (h * 13 + e.from * 7 + e.to) ^ int(e.strength * 100)
 	return h
+
+func get_history_summary() -> String:
+	var lines: PackedStringArray = []
+	var start = max(0, history.size() - 8)
+	for i in range(start, history.size()):
+		var r = history[i]
+		lines.append("%d:%s n=%d e=%d" % [r.frame, r.op, r.node, r.edge])
+	return "\n".join(lines)

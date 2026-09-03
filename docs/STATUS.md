@@ -1,32 +1,30 @@
 # Project Status
 
-**Version**: 1.9.1 — Cycle 1 Hardening  
+**Version**: 1.9.2 — Cycle 2  
 **Repository**: https://github.com/beyond-repair/Project-Cold-Boot
 
 ## Working
 
 - Main menu → vertical slice
-- SCAN / SNAP / SUNDER + Auditor + win + Sable
-- DCB-style validation (budget, partition, sanity)
+- Full SCAN / SNAP / SUNDER + Auditor + win state + Sable
+- DCB-style validation
 - Quantized positions
-- Priority-ordered mutation log
+- MutationLog history (last 64 records) + in-game panel (H to toggle)
 - Pause / reset / frame hash
 
 ## Canonical Docs
 
-- `docs/ARCHITECTURE.md` (binding technical spec)
+- `docs/ARCHITECTURE.md`
 - `docs/BIBLE.md`
 - `docs/DEMO.md`
-- `docs/SELF_REVIEW.md` (review checklist)
+- `docs/SELF_REVIEW.md`
 
-## Self-Review Status
+## Self-Review
 
-Cycle 1 passed internal checklist (see SELF_REVIEW.md).  
-Full game not complete. Implementation continues in self-directed loops until review-ready across all milestones.
+Cycle 2 passed. Continuing loops until full game + review-ready codebase.
 
-## Next Cycles
+## Next
 
-2. Dual SubViewport scaffold
-3. MutationLog history + simple replay panel
-4. Second room / Kernel stub
-5. GDExtension skeleton matching ARCHITECTURE.md
+Cycle 3: Dual SubViewport (Own World 3D) implementation
+Cycle 4: Second room
+Cycle 5: File-based replay
