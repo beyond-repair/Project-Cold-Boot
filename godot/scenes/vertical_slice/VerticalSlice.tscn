@@ -6,36 +6,37 @@
 size = Vector3(20, 0.2, 20)
 
 [sub_resource type="StandardMaterial3D" id="Mat_floor"]
-albedo_color = Color(0.07, 0.07, 0.11, 1)
+albedo_color = Color(0.03, 0.03, 0.05, 1)
 
 [sub_resource type="BoxMesh" id="BoxMesh_seam"]
 size = Vector3(0.18, 7, 14)
 
 [sub_resource type="StandardMaterial3D" id="Mat_seam"]
-albedo_color = Color(0.55, 0.15, 1, 1)
+albedo_color = Color(0.7, 0.25, 1, 1)
 emission_enabled = true
-emission = Color(0.7, 0.25, 1, 1)
-emission_energy_multiplier = 5.0
+emission = Color(0.85, 0.35, 1, 1)
+emission_energy_multiplier = 8.0
+shading_mode = 0
 
 [sub_resource type="CapsuleMesh" id="Capsule_auditor"]
 radius = 0.4
 height = 1.85
 
 [sub_resource type="StandardMaterial3D" id="Mat_auditor"]
-albedo_color = Color(0.08, 0.08, 0.1, 1)
+albedo_color = Color(0.06, 0.06, 0.08, 1)
 emission_enabled = true
-emission = Color(0.35, 0.05, 0.45, 1)
-emission_energy_multiplier = 1.0
+emission = Color(0.35, 0.05, 0.55, 1)
+emission_energy_multiplier = 1.8
 
 [sub_resource type="CapsuleMesh" id="Capsule_sable"]
 radius = 0.32
 height = 1.6
 
 [sub_resource type="StandardMaterial3D" id="Mat_sable"]
-albedo_color = Color(0.12, 0.04, 0.18, 1)
+albedo_color = Color(0.09, 0.03, 0.14, 1)
 emission_enabled = true
-emission = Color(0.55, 0.2, 0.85, 1)
-emission_energy_multiplier = 2.0
+emission = Color(0.6, 0.2, 0.95, 1)
+emission_energy_multiplier = 2.4
 
 [sub_resource type="Environment" id="Env_Layer0"]
 background_mode = 1
@@ -96,7 +97,7 @@ visible = false
 
 [node name="SubViewport_Layer0" type="SubViewport" parent="DualLayerViewports"]
 own_world_3d = true
-size = Vector2i(640, 360)
+size = Vector2i(960, 540)
 render_target_update_mode = 4
 
 [node name="WorldEnvironment_L0" type="WorldEnvironment" parent="DualLayerViewports/SubViewport_Layer0"]
@@ -108,7 +109,7 @@ fov = 52.0
 
 [node name="SubViewport_Layer1" type="SubViewport" parent="DualLayerViewports"]
 own_world_3d = true
-size = Vector2i(640, 360)
+size = Vector2i(960, 540)
 render_target_update_mode = 4
 
 [node name="WorldEnvironment_L1" type="WorldEnvironment" parent="DualLayerViewports/SubViewport_Layer1"]
@@ -119,6 +120,16 @@ transform = Transform3D(1, 0, 0, 0, 0.906, 0.423, 0, -0.423, 0.906, 0, 5, 9)
 fov = 52.0
 
 [node name="UI" type="CanvasLayer" parent="."]
+
+[node name="CompositorRect" type="ColorRect" parent="UI"]
+z_index = -10
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0, 0, 0, 0.01)
 
 [node name="StatusLabel" type="Label" parent="UI"]
 offset_left = 24.0
@@ -177,11 +188,11 @@ text = "History:"
 [node name="HelpLabel" type="Label" parent="UI"]
 offset_left = 24.0
 offset_top = 680.0
-offset_right = 1100.0
+offset_right = 1200.0
 offset_bottom = 710.0
 theme_override_colors/font_color = Color(0.55, 0.55, 0.65, 1)
 theme_override_font_sizes/font_size = 13
-text = "E=SCAN LMB=SNAP SPACE=SUNDER R=Reset Esc=Pause H=History | 1/2/3=Kernel N=NextRoom"
+text = "E=SCAN LMB=SNAP SPACE=SUNDER R=Reset Esc=Pause H=History | 1/2/3=Kernel N=Next | F5=Save F9=Load"
 
 [node name="WinPanel" type="PanelContainer" parent="UI"]
 visible = false
@@ -199,7 +210,7 @@ offset_bottom = 90.0
 layout_mode = 2
 theme_override_colors/font_color = Color(0.85, 0.7, 1, 1)
 theme_override_font_sizes/font_size = 18
-text = "ROOM REWRITTEN\nSable: \"Another fragment secured.\"\nPress N for next room | R to reset"
+text = "ROOM REWRITTEN\nSable: \"Another fragment secured.\"\nN = next room | F5 = save | R = reset"
 horizontal_alignment = 1
 vertical_alignment = 1
 

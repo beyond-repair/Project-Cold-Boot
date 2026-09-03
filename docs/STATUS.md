@@ -1,31 +1,24 @@
 # Project Status
 
-**Version**: 1.9.8  
+**Version**: 1.9.9  
 **Repository**: https://github.com/beyond-repair/Project-Cold-Boot
 
-## Working (Playable)
+## Working
 
-- Vertical slice: SCAN → SNAP → SUNDER
-- Two rooms, Kernel selection, Auditor, Sable
-- Dual SubViewport scaffold + domain-warped shaders
-- MutationLog history, validation, quantized positions
-- Art direction locked to your reference images
+- SCAN → SNAP → SUNDER, two rooms, Kernels, Auditor, Sable
+- Dual SubViewport scaffold + **domain-warp compositor wired** (bleed_intensity driven by SCAN)
+- **MutationLog / run save-load** (F5 save, F9 load)
+- Art direction locked; Steam prep docs present
 
-## Steam Preparation
+## Controls (current)
 
-- `docs/STEAM_PREP.md` — checklist, store draft, depot structure, build workflow
-- `docs/ROADMAP_TO_1.0.md` — concrete path to a shippable / Early Access build
+E SCAN | LMB SNAP | Space SUNDER | R Reset | Esc Pause | H History  
+1/2/3 Kernel | N Next room | **F5 Save** | **F9 Load**
 
-## Standing Rules
+## Next
 
-1. Push every meaningful increment to `main`.
-2. Visuals stay true to the locked reference art.
-3. Do not claim "complete" until Phase E criteria are met.
-
-## Immediate Next Build Steps
-
-1. Wire domain_warp_compositor to the dual SubViewports (visible bleed)
-2. MutationLog save/load to disk
-3. Options menu stub
-4. More rooms / stronger single-session loop
-5. Windows export preset + first SteamPipe trial when content is deeper
+- Options menu (fullscreen, volume, sensitivity)
+- More rooms / longer loop
+- CausalEnergy material on nodes/edges
+- Windows export preset trial
+- Continue toward Roadmap Phase B content
