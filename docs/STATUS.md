@@ -1,20 +1,19 @@
-# Project Status — FOUNDATION COMPLETE
+# Status — Building
 
-**Version**: Foundation 1.0  
-**Repository**: https://github.com/beyond-repair/Project-Cold-Boot
+**Repo**: https://github.com/beyond-repair/Project-Cold-Boot
 
-## State
+## Current playable
 
-This development arc is **complete** as a foundation package.
+- 3 rooms (N to advance after clear)
+- SCAN / SNAP / SUNDER, Kernels, Auditor, Sable
+- Save F5 / Load F9
+- Options on main menu
+- Domain-warp compositor + dual SubViewport scaffold
+- Art direction locked to reference images
 
-- Playable vertical slice with systems, save/load, options, dual-layer scaffold, domain-warped shaders
-- Full design + architecture + Steam prep documentation
-- Art direction locked to your reference images
-- Public repo ready for continued solo or team production
+## Controls
 
-See **`docs/COMPLETE.md`** for the definitive finished-vs-remaining list.
+E SCAN | LMB SNAP | Space SUNDER | R Reset | Esc Pause | H History  
+1/2/3 Kernel | N Next room | F5 Save | F9 Load
 
-## Commercial 1.0
-
-Follow `docs/ROADMAP_TO_1.0.md` and `docs/STEAM_PREP.md`.  
-No further foundation work is required before content and production art begin.
+Open `godot/` in Godot 4.2+ → F5.
