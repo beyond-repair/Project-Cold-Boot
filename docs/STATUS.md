@@ -1,23 +1,31 @@
 # Project Status
 
-**Version**: 1.9.7  
+**Version**: 1.9.8  
 **Repository**: https://github.com/beyond-repair/Project-Cold-Boot
 
-## Working
+## Working (Playable)
 
-- Playable vertical slice (rooms, Kernels, Auditor, Sable, history)
-- Dual SubViewport scaffold
-- Visual fidelity pass (art-locked)
-- **Domain-warped noise shaders implemented and pushed**:
-  - `godot/shaders/domain_warp_noise.gdshader`
-  - `godot/shaders/domain_warp_compositor.gdshader`
+- Vertical slice: SCAN → SNAP → SUNDER
+- Two rooms, Kernel selection, Auditor, Sable
+- Dual SubViewport scaffold + domain-warped shaders
+- MutationLog history, validation, quantized positions
+- Art direction locked to your reference images
 
-## Standing Rule
+## Steam Preparation
 
-Push after every meaningful increment. No progress left only in chat.
+- `docs/STEAM_PREP.md` — checklist, store draft, depot structure, build workflow
+- `docs/ROADMAP_TO_1.0.md` — concrete path to a shippable / Early Access build
 
-## Next
+## Standing Rules
 
-- Wire compositor shader to the dual SubViewports in the vertical slice scene
-- Apply causal-energy material to nodes/edges
-- File save/load of MutationLog
+1. Push every meaningful increment to `main`.
+2. Visuals stay true to the locked reference art.
+3. Do not claim "complete" until Phase E criteria are met.
+
+## Immediate Next Build Steps
+
+1. Wire domain_warp_compositor to the dual SubViewports (visible bleed)
+2. MutationLog save/load to disk
+3. Options menu stub
+4. More rooms / stronger single-session loop
+5. Windows export preset + first SteamPipe trial when content is deeper

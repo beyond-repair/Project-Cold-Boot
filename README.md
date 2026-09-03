@@ -2,37 +2,29 @@
 
 **You are not the hero. You are the cold boot — the first draft the system never meant to survive.**
 
-First-person reality-editing action-puzzle game. Spiritual successor to *Noctropolis* (1994). Godot 4.x + **Deterministic Log-Reduction Simulation Engine (DLRSE)**.
+First-person reality-editing action-puzzle. Spiritual successor spirit to *Noctropolis* (1994). Godot 4.x + Deterministic Log-Reduction Simulation Engine (DLRSE) architecture.
 
 **Public repo**: https://github.com/beyond-repair/Project-Cold-Boot
 
-## Play Current Build
+## Play the Current Build
 
 1. Open `godot/` in Godot 4.2+
-2. F5 → Main Menu → ENTER THE MANUSCRIPT
-3. **E** SCAN · **LMB** SNAP · **Space** SUNDER · **R** Reset · **Esc** Pause
+2. F5 → ENTER THE MANUSCRIPT
+3. **E** SCAN · **LMB** SNAP · **Space** SUNDER · **1/2/3** Kernel · **N** Next room · **R** Reset · **Esc** Pause · **H** History
 
-Connect Lamp (0) to Gate (3) while adapting to Auditor locks.
+## Steam Path
 
-## Architecture
+See **`docs/STEAM_PREP.md`** and **`docs/ROADMAP_TO_1.0.md`**.
 
-See **`docs/ARCHITECTURE.md`** for the full technical specification:
+The project includes a Steam preparation package (store draft, checklist, depot layout, build notes). The game itself is still in vertical-slice / Early Access preparation stage — not yet a finished commercial release.
 
-- DLRSE log-reduction pipeline
-- Quantized fixed-point math
-- AC-3 / AC-4.1 constraint propagation
-- Deterministic Commit Barrier
-- Dual SubViewport (Own World 3D) compositing
-- Global Pressure Regulator
-- Four-phase solo production plan
+## Art
 
-## Status
-
-Vertical slice playable. Full game implementation active against the architectural blueprint. All updates pushed to `main` continuously.
+Visual direction is **locked** to the provided GDD and moodboard images. All rendering work must stay true to that cyber-noir + gothic ink identity.
 
 ## License
 
-MIT. Original code and assets only. Intertextual homage permitted; no direct IP lifts.
+MIT. Original code and assets only.
 
 ---
 
