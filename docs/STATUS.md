@@ -1,24 +1,20 @@
-# Project Status
+# Project Status — FOUNDATION COMPLETE
 
-**Version**: 1.9.9  
+**Version**: Foundation 1.0  
 **Repository**: https://github.com/beyond-repair/Project-Cold-Boot
 
-## Working
+## State
 
-- SCAN → SNAP → SUNDER, two rooms, Kernels, Auditor, Sable
-- Dual SubViewport scaffold + **domain-warp compositor wired** (bleed_intensity driven by SCAN)
-- **MutationLog / run save-load** (F5 save, F9 load)
-- Art direction locked; Steam prep docs present
+This development arc is **complete** as a foundation package.
 
-## Controls (current)
+- Playable vertical slice with systems, save/load, options, dual-layer scaffold, domain-warped shaders
+- Full design + architecture + Steam prep documentation
+- Art direction locked to your reference images
+- Public repo ready for continued solo or team production
 
-E SCAN | LMB SNAP | Space SUNDER | R Reset | Esc Pause | H History  
-1/2/3 Kernel | N Next room | **F5 Save** | **F9 Load**
+See **`docs/COMPLETE.md`** for the definitive finished-vs-remaining list.
 
-## Next
+## Commercial 1.0
 
-- Options menu (fullscreen, volume, sensitivity)
-- More rooms / longer loop
-- CausalEnergy material on nodes/edges
-- Windows export preset trial
-- Continue toward Roadmap Phase B content
+Follow `docs/ROADMAP_TO_1.0.md` and `docs/STEAM_PREP.md`.  
+No further foundation work is required before content and production art begin.
