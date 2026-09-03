@@ -1,38 +1,36 @@
-# Screen-Space Noise Generation — Project Cold Boot
+# Screen-Space & Procedural Noise — Project Cold Boot
 
-Noise is a core visual primitive for bleed seams, ink-decay, Auditor glitch, and living causal energy.
+## Implemented Shaders (Cycle 6)
 
-## Methods
+### `godot/shaders/domain_warp_noise.gdshader`
+Spatial, additive. Domain-warped value noise for:
+- Violet causal energy on nodes / surfaces
+- Living ink-decay overlays
+- Fresnel-enhanced presence
 
-### Value Noise
-Fast lattice noise. Good base for bleed masks and soft decay.
+Parameters: `energy_color`, `intensity`, `warp_strength`, `noise_scale`, `time_speed`, `pulse_speed`, `fresnel_power`.
 
-### Gradient / Perlin-Style
-Smoother, more organic. Better for flowing ink.
+### `godot/shaders/domain_warp_compositor.gdshader`
+CanvasItem full-screen compositor. Samples two layer textures and produces a domain-warped, vertically stretched lightning bleed seam.
 
-### Texture-Based (Preferred for Full-Screen)
-`NoiseTexture2D` or pre-baked tiling texture. Lowest cost for compositor.
+Parameters: `layer0_tex`, `layer1_tex`, `bleed_intensity`, `seam_width`, `warp_strength`, `noise_scale`, `time_speed`, `violet_seam`, `seam_emission`, `stretch`.
 
-### Domain Warping
-Warp one noise with another for folding ink and unstable seam character.
+## Domain Warping Summary
 
-### Screen-Space Patterns
-- Scanlines + noise → Auditor
-- Vertically stretched noise → lightning tear seam
+1. Generate low-frequency noise field Q.
+2. Use Q to offset the sampling coordinates of a second noise field R.
+3. Optionally warp again.
+4. Final noise value is sampled at the twice-warped coordinate.
 
-## Performance (Mobile)
+This produces the folding, liquid, unstable look required for the reference lightning tear and ink-decay.
 
-| Method              | Cost    | Use                          |
-|---------------------|---------|------------------------------|
-| Texture sample      | Lowest  | Full-screen compositor       |
-| Value noise (1 oct) | Low     | Per-object detail            |
-| Gradient + warp     | Medium  | Hero effects                 |
-| Many octaves        | High    | Avoid on mobile              |
+## Usage Notes
 
-GPR can reduce octaves or force texture-only under pressure.
+- Assign the compositor shader to a full-screen ColorRect / TextureRect that sits above the dual SubViewports.
+- Feed `SubViewport_Layer0` and `SubViewport_Layer1` as `ViewportTexture`s into `layer0_tex` / `layer1_tex`.
+- Drive `bleed_intensity` from SCAN state, entropy, or Kernel.
+- Keep `violet_seam` locked to the reference electric violet.
 
-## Integration
+## Performance
 
-Expose `bleed_intensity`, `noise_scale`, `noise_speed` so SCAN, entropy, and Kernel can drive the visuals.
-
-Art rule: resulting noise must produce the same class of violet lightning tear and ink-like instability shown in the reference images.
+Domain warping costs ~3 value-noise evaluations. Acceptable for full-screen on mid-range Android when the rest of the frame is within GPR budget. Under extreme pressure, fall back to a single texture sample.
