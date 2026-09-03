@@ -1,37 +1,37 @@
 # Project Status
 
-**Version**: 1.9 — Vertical Slice Hardened + Full Game Roadmap Active  
-**Repository**: https://github.com/beyond-repair/Project-Cold-Boot  
-**Owner**: beyond-repair
+**Version**: 1.9 — Architecture Document Integrated + Full Game Implementation Active  
+**Repository**: https://github.com/beyond-repair/Project-Cold-Boot
+
+## Canonical References
+
+- `docs/ARCHITECTURE.md` — Full DLRSE / AC-4.1 / dual-viewport / GPR paper (authoritative)
+- `docs/BIBLE.md` — Executive design bible
+- `docs/DEMO.md` — How to run current build
+- `docs/ART_DIRECTION.md` — Visual language from GDD + moodboard
 
 ## Working Now
 
-- Main menu → vertical slice flow
-- Playable SCAN → SNAP → SUNDER with clear objectives
-- Auditor lock intervention
-- Gate open win state + Sable acknowledgement
-- Pause (Esc) + Reset (R)
-- Frame hash + dual-layer node colors + bleed seam
-- See `docs/DEMO.md`
+- Main menu → vertical slice
+- Playable SCAN → SNAP → SUNDER with Auditor, win state, Sable, pause/reset
+- Dual-layer node colors + bleed seam + frame hash
+- Godot 4.2+ project under `godot/`
 
-## Full Game Roadmap (In Progress)
+## Production Phases (from Architecture)
 
-1. ~~Vertical slice gray-box~~ → **Hardening complete**
-2. Real ActiveGraph + MutationLog + DCB structure (expand current simulation)
-3. Full Gear of the Ancients (Shadow-Skin, Noctro-Glyph, Dimensional Anchor)
-4. Multi-room campaign structure + Kernel selection
-5. Auditor pattern memory + multiple tactics
-6. Dual-layer shaders + VFX
-7. Sable dialogue / storylet system
-8. Save/load, settings, proper meta-loop
-9. Audio, haptics, polish
-10. Export + 1.0 release
+1. **Vertical Slice** (in progress → hardening) — core loop + basic dual view + DLRSE simulation
+2. **Core Tooling** — graph editor, replay viewer, mutation inspector
+3. **Procedural Content** — rule-field generation + solver heuristics
+4. **Optimization & Polish** — GPR, shaders, audio, exports, 1.0
 
-## Next Push Targets
+## Immediate Implementation Queue
 
-- Expand graph simulation toward full DLRSE invariants
-- Second room + simple transition
-- Basic Noctro-Glyph / Gravity Anchor distinction
-- Simple save of MutationLog for replay
+- Expand GDScript simulation toward quantized / validated DCB patterns from ARCHITECTURE.md
+- Dual SubViewport prototype (Own World 3D) for true Layer 0 / Layer 1 isolation
+- Second room + transition
+- Noctro-Glyph vs Gravity Anchor distinction
+- MutationLog replay / save
+- Kernel selection
+- Full ActiveGraph + AC-4.1 path (GDExtension target)
 
-Architecture remains locked. Implementation continues until the full game is complete.
+Architecture is locked. Implementation continues until the complete game ships.

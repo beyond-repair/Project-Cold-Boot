@@ -2,32 +2,37 @@
 
 **You are not the hero. You are the cold boot — the first draft the system never meant to survive.**
 
-First-person reality-editing action-puzzle game. Spiritual successor to *Noctropolis* (1994). Godot 4.x + Deterministic Log-Reduction Simulation Engine (DLRSE).
+First-person reality-editing action-puzzle game. Spiritual successor to *Noctropolis* (1994). Godot 4.x + **Deterministic Log-Reduction Simulation Engine (DLRSE)**.
 
 **Public repo**: https://github.com/beyond-repair/Project-Cold-Boot
 
-## Play the Current Build
+## Play Current Build
 
 1. Open `godot/` in Godot 4.2+
-2. Press F5
-3. Main menu → ENTER THE MANUSCRIPT
-4. E = SCAN, LMB = SNAP, Space = SUNDER, R = Reset, Esc = Pause
+2. F5 → Main Menu → ENTER THE MANUSCRIPT
+3. **E** SCAN · **LMB** SNAP · **Space** SUNDER · **R** Reset · **Esc** Pause
 
 Connect Lamp (0) to Gate (3) while adapting to Auditor locks.
 
-## Core Loop
+## Architecture
 
-SCAN → SNAP → SUNDER
+See **`docs/ARCHITECTURE.md`** for the full technical specification:
+
+- DLRSE log-reduction pipeline
+- Quantized fixed-point math
+- AC-3 / AC-4.1 constraint propagation
+- Deterministic Commit Barrier
+- Dual SubViewport (Own World 3D) compositing
+- Global Pressure Regulator
+- Four-phase solo production plan
 
 ## Status
 
-Vertical slice is playable and hardened (menu, objectives, win state, pause). Full game implementation continues: real DLRSE core, multi-room campaign, Gear of the Ancients, shaders, Sable storylets, save/load, polish → 1.0.
-
-See `docs/STATUS.md` and `docs/DEMO.md`.
+Vertical slice playable. Full game implementation active against the architectural blueprint. All updates pushed to `main` continuously.
 
 ## License
 
-MIT. Original assets and code only.
+MIT. Original code and assets only. Intertextual homage permitted; no direct IP lifts.
 
 ---
 
