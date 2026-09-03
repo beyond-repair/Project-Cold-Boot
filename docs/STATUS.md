@@ -1,37 +1,32 @@
 # Project Status
 
-**Version**: 1.9 — Architecture Document Integrated + Full Game Implementation Active  
+**Version**: 1.9.1 — Cycle 1 Hardening  
 **Repository**: https://github.com/beyond-repair/Project-Cold-Boot
 
-## Canonical References
-
-- `docs/ARCHITECTURE.md` — Full DLRSE / AC-4.1 / dual-viewport / GPR paper (authoritative)
-- `docs/BIBLE.md` — Executive design bible
-- `docs/DEMO.md` — How to run current build
-- `docs/ART_DIRECTION.md` — Visual language from GDD + moodboard
-
-## Working Now
+## Working
 
 - Main menu → vertical slice
-- Playable SCAN → SNAP → SUNDER with Auditor, win state, Sable, pause/reset
-- Dual-layer node colors + bleed seam + frame hash
-- Godot 4.2+ project under `godot/`
+- SCAN / SNAP / SUNDER + Auditor + win + Sable
+- DCB-style validation (budget, partition, sanity)
+- Quantized positions
+- Priority-ordered mutation log
+- Pause / reset / frame hash
 
-## Production Phases (from Architecture)
+## Canonical Docs
 
-1. **Vertical Slice** (in progress → hardening) — core loop + basic dual view + DLRSE simulation
-2. **Core Tooling** — graph editor, replay viewer, mutation inspector
-3. **Procedural Content** — rule-field generation + solver heuristics
-4. **Optimization & Polish** — GPR, shaders, audio, exports, 1.0
+- `docs/ARCHITECTURE.md` (binding technical spec)
+- `docs/BIBLE.md`
+- `docs/DEMO.md`
+- `docs/SELF_REVIEW.md` (review checklist)
 
-## Immediate Implementation Queue
+## Self-Review Status
 
-- Expand GDScript simulation toward quantized / validated DCB patterns from ARCHITECTURE.md
-- Dual SubViewport prototype (Own World 3D) for true Layer 0 / Layer 1 isolation
-- Second room + transition
-- Noctro-Glyph vs Gravity Anchor distinction
-- MutationLog replay / save
-- Kernel selection
-- Full ActiveGraph + AC-4.1 path (GDExtension target)
+Cycle 1 passed internal checklist (see SELF_REVIEW.md).  
+Full game not complete. Implementation continues in self-directed loops until review-ready across all milestones.
 
-Architecture is locked. Implementation continues until the complete game ships.
+## Next Cycles
+
+2. Dual SubViewport scaffold
+3. MutationLog history + simple replay panel
+4. Second room / Kernel stub
+5. GDExtension skeleton matching ARCHITECTURE.md

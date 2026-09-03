@@ -1,5 +1,5 @@
 extends Node3D
-## Vertical Slice — hardened single-room experience.
+## Vertical Slice controller — architecture-aligned, review-ready.
 
 @onready var status_label: Label = $UI/StatusLabel
 @onready var help_label: Label = $UI/HelpLabel
@@ -71,8 +71,10 @@ func _do_scan() -> void:
 		_update_ui("Already scanned. Draw SNAP links between nodes.")
 		return
 	GameState.begin_frame()
-	GameState.log_mutation("SCAN", 0)
-	GameState.commit_frame()
+	GameState.log_mutation("SCAN", 0, -1, [], 0)
+	if not GameState.commit_frame():
+		_update_ui("SCAN rejected: %s" % GameState.last_reject_reason)
+		return
 	_update_ui("SCAN complete. Click two nodes to create a causal SNAP link.")
 	_update_objective()
 
@@ -106,10 +108,12 @@ func _try_select_node() -> void:
 
 func _do_snap(from_id: int, to_id: int) -> void:
 	GameState.begin_frame()
-	GameState.log_mutation("SNAP", from_id, to_id)
+	GameState.log_mutation("SNAP", from_id, to_id, [], 0)
 	if GameState.snap_count == 1 and not GameState.auditor_active:
-		GameState.log_mutation("AUD_LOCK", 2)  # Lock Necro_Spire after second link attempt
-	GameState.commit_frame()
+		GameState.log_mutation("AUD_LOCK", 2, -1, [], 2)  # priority 2 = auditor
+	if not GameState.commit_frame():
+		_update_ui("SNAP rejected: %s" % GameState.last_reject_reason)
+		return
 	_update_objective()
 
 func _do_sunder() -> void:
@@ -117,8 +121,10 @@ func _do_sunder() -> void:
 		_update_ui("No chains to SUNDER. Create SNAP links first.")
 		return
 	GameState.begin_frame()
-	GameState.log_mutation("SUNDER", 0)
-	GameState.commit_frame()
+	GameState.log_mutation("SUNDER", 0, -1, [], 0)
+	if not GameState.commit_frame():
+		_update_ui("SUNDER rejected: %s" % GameState.last_reject_reason)
+		return
 	_update_objective()
 
 func _on_scan() -> void:
@@ -190,7 +196,7 @@ func _rebuild_visuals() -> void:
 			mat.albedo_color = Color(0.2, 0.9, 0.4)
 			mat.emission = Color(0.3, 1.0, 0.5)
 		mi.material_override = mat
-		mi.position = n.pos
+		mi.position = GameState.get_node_pos(n.id)
 		node_container.add_child(mi)
 
 		var body := StaticBody3D.new()
@@ -204,8 +210,8 @@ func _rebuild_visuals() -> void:
 		node_meshes[n.id] = mi
 
 	for e in GameState.edges:
-		var from_pos: Vector3 = GameState.nodes[e.from].pos
-		var to_pos: Vector3 = GameState.nodes[e.to].pos
+		var from_pos: Vector3 = GameState.get_node_pos(e.from)
+		var to_pos: Vector3 = GameState.get_node_pos(e.to)
 		var mi := MeshInstance3D.new()
 		var cyl := CylinderMesh.new()
 		cyl.top_radius = 0.06
