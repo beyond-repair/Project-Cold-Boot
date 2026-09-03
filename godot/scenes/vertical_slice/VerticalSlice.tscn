@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://scripts/vertical_slice/VerticalSlice.gd" id="1"]
 
@@ -36,6 +36,21 @@ albedo_color = Color(0.12, 0.04, 0.18, 1)
 emission_enabled = true
 emission = Color(0.55, 0.2, 0.85, 1)
 emission_energy_multiplier = 2.0
+
+[sub_resource type="Environment" id="Env_Layer0"]
+background_mode = 1
+background_color = Color(0.02, 0.01, 0.03, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.25, 0.1, 0.35, 1)
+ambient_light_energy = 0.4
+
+[sub_resource type="Environment" id="Env_Layer1"]
+background_mode = 1
+background_color = Color(0.01, 0.02, 0.05, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.1, 0.25, 0.45, 1)
+ambient_light_energy = 0.5
+glow_enabled = true
 
 [node name="VerticalSlice" type="Node3D"]
 script = ExtResource("1")
@@ -77,6 +92,32 @@ mesh = SubResource("Capsule_sable")
 surface_material_override/0 = SubResource("Mat_sable")
 visible = false
 
+[node name="DualLayerViewports" type="Node3D" parent="."]
+
+[node name="SubViewport_Layer0" type="SubViewport" parent="DualLayerViewports"]
+own_world_3d = true
+size = Vector2i(640, 360)
+render_target_update_mode = 4
+
+[node name="WorldEnvironment_L0" type="WorldEnvironment" parent="DualLayerViewports/SubViewport_Layer0"]
+environment = SubResource("Env_Layer0")
+
+[node name="Camera3D_L0" type="Camera3D" parent="DualLayerViewports/SubViewport_Layer0"]
+transform = Transform3D(1, 0, 0, 0, 0.906, 0.423, 0, -0.423, 0.906, 0, 5, 9)
+fov = 52.0
+
+[node name="SubViewport_Layer1" type="SubViewport" parent="DualLayerViewports"]
+own_world_3d = true
+size = Vector2i(640, 360)
+render_target_update_mode = 4
+
+[node name="WorldEnvironment_L1" type="WorldEnvironment" parent="DualLayerViewports/SubViewport_Layer1"]
+environment = SubResource("Env_Layer1")
+
+[node name="Camera3D_L1" type="Camera3D" parent="DualLayerViewports/SubViewport_Layer1"]
+transform = Transform3D(1, 0, 0, 0, 0.906, 0.423, 0, -0.423, 0.906, 0, 5, 9)
+fov = 52.0
+
 [node name="UI" type="CanvasLayer" parent="."]
 
 [node name="StatusLabel" type="Label" parent="UI"]
@@ -115,14 +156,23 @@ theme_override_colors/font_color = Color(0.55, 0.65, 0.75, 1)
 theme_override_font_sizes/font_size = 12
 text = "History:"
 
+[node name="LayerLabel" type="Label" parent="UI"]
+offset_left = 24.0
+offset_top = 300.0
+offset_right = 500.0
+offset_bottom = 340.0
+theme_override_colors/font_color = Color(0.7, 0.5, 1, 1)
+theme_override_font_sizes/font_size = 13
+text = "Dual SubViewport: Layer0 (Necropolis) + Layer1 (Vesper) Own World 3D active"
+
 [node name="HelpLabel" type="Label" parent="UI"]
 offset_left = 24.0
 offset_top = 680.0
-offset_right = 900.0
+offset_right = 1000.0
 offset_bottom = 710.0
 theme_override_colors/font_color = Color(0.55, 0.55, 0.65, 1)
 theme_override_font_sizes/font_size = 14
-text = "E = SCAN | LMB = SNAP | SPACE = SUNDER | R = Reset | Esc = Pause | H = Toggle History"
+text = "E = SCAN | LMB = SNAP | SPACE = SUNDER | R = Reset | Esc = Pause | H = History"
 
 [node name="WinPanel" type="PanelContainer" parent="UI"]
 visible = false

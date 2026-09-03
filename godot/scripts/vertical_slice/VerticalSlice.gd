@@ -1,5 +1,5 @@
 extends Node3D
-## Vertical Slice controller — Cycle 2 (history panel + dual-layer readiness).
+## Vertical Slice — Cycle 3: Dual SubViewport scaffold active.
 
 @onready var status_label: Label = $UI/StatusLabel
 @onready var help_label: Label = $UI/HelpLabel
@@ -13,6 +13,9 @@ extends Node3D
 @onready var bleed_seam: MeshInstance3D = $BleedSeam
 @onready var win_panel: Control = $UI/WinPanel
 @onready var pause_panel: Control = $UI/PausePanel
+@onready var cam_main: Camera3D = $Camera3D
+@onready var cam_l0: Camera3D = $DualLayerViewports/SubViewport_Layer0/Camera3D_L0
+@onready var cam_l1: Camera3D = $DualLayerViewports/SubViewport_Layer1/Camera3D_L1
 
 var selected_node: int = -1
 var node_meshes: Dictionary = {}
@@ -36,6 +39,12 @@ func _ready() -> void:
 	_update_objective()
 	_update_ui("Press E to SCAN and reveal the causal anchors.")
 	help_label.text = "E = SCAN | LMB = SNAP | SPACE = SUNDER | R = Reset | Esc = Pause | H = History"
+
+func _process(_delta: float) -> void:
+	# Keep dual-layer cameras in sync with main camera (Architecture requirement)
+	if cam_main and cam_l0 and cam_l1:
+		cam_l0.global_transform = cam_main.global_transform
+		cam_l1.global_transform = cam_main.global_transform
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("pause_menu"):
