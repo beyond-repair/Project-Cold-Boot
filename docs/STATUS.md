@@ -1,21 +1,21 @@
 # Project Status
 
-**Version**: 1.9.5 — Cycle 5 (Art-Locked Visual Pass)  
+**Version**: 1.9.6  
 **Repository**: https://github.com/beyond-repair/Project-Cold-Boot
 
 ## Working
 
-- Full vertical-slice loop + two rooms + Kernels
-- MutationLog history + Dual SubViewport scaffold
-- **Visual direction locked** to the provided GDD + moodboard images
-- Stronger violet causal energy, dual-layer color separation, intense bleed seam, darker atmosphere
+- Playable vertical slice (two rooms, Kernels, Auditor, Sable, history)
+- Dual SubViewport scaffold (Own World 3D)
+- Visual fidelity pass aligned to locked art
+- **Shader & noise technique docs captured** (`docs/SHADERS.md`, `docs/NOISE.md`)
 
-## Art Authority
+## Standing Rule
 
-See `docs/ART_DIRECTION.md`. The uploaded images are the single source of truth for look and feel for the entire game.
+Push incremental updates to `main` after every meaningful step. No progress left only in chat.
 
 ## Next
 
-Cycle 6: File save/load of MutationLog + basic replay
-Cycle 7: Compositor / bleed shader sampling SubViewports
-Cycle 8: Further mesh / VFX alignment to reference
+Cycle 6: Implement noise-driven compositor shader + file save/load of MutationLog
+Cycle 7: CausalEnergy material on nodes/edges
+Cycle 8: Further art alignment + GDExtension path
