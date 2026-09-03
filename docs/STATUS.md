@@ -1,41 +1,37 @@
 # Project Status
 
-**Version**: 1.8 + Vertical Slice Demo  
+**Version**: 1.9 — Vertical Slice Hardened + Full Game Roadmap Active  
 **Repository**: https://github.com/beyond-repair/Project-Cold-Boot  
 **Owner**: beyond-repair
 
-## Locked
+## Working Now
 
-- Core vision & design philosophy
-- SCAN → SNAP → SUNDER loop
-- DLRSE architecture & determinism invariants
-- DCB validation suite
-- GPR frame budget model
-- AC-3 / AC-4.1 scheduling approach
-- Gear of the Ancients (Items 1–3)
-- Solo-dev execution directive
-- Engineering Constitution
-- Visual language (GDD + moodboard)
+- Main menu → vertical slice flow
+- Playable SCAN → SNAP → SUNDER with clear objectives
+- Auditor lock intervention
+- Gate open win state + Sable acknowledgement
+- Pause (Esc) + Reset (R)
+- Frame hash + dual-layer node colors + bleed seam
+- See `docs/DEMO.md`
 
-## Working Demo (Now)
+## Full Game Roadmap (In Progress)
 
-- Godot 4.x vertical-slice project under `godot/`
-- Minimal MutationLog + commit simulation in GDScript
-- Playable SCAN / SNAP / SUNDER loop with Auditor lock + Sable reveal
-- Dual-layer node colors + bleed seam
-- Frame hash feedback
-- See `docs/DEMO.md` for run instructions
+1. ~~Vertical slice gray-box~~ → **Hardening complete**
+2. Real ActiveGraph + MutationLog + DCB structure (expand current simulation)
+3. Full Gear of the Ancients (Shadow-Skin, Noctro-Glyph, Dimensional Anchor)
+4. Multi-room campaign structure + Kernel selection
+5. Auditor pattern memory + multiple tactics
+6. Dual-layer shaders + VFX
+7. Sable dialogue / storylet system
+8. Save/load, settings, proper meta-loop
+9. Audio, haptics, polish
+10. Export + 1.0 release
 
-## Next Immediate
+## Next Push Targets
 
-1. Playtest and tighten the gray-box feel
-2. Replace GDScript simulation with real ActiveGraph / DCB stubs
-3. Dual-layer material / simple ink-bleed shader
-4. Replay harness (record input + MutationLog, verify hash)
+- Expand graph simulation toward full DLRSE invariants
+- Second room + simple transition
+- Basic Noctro-Glyph / Gravity Anchor distinction
+- Simple save of MutationLog for replay
 
-## Out of Scope Until Slice Feels Good
-
-- Full C++ GDExtension
-- Procedural generation
-- Production art / audio
-- Multiple Kernels
+Architecture remains locked. Implementation continues until the full game is complete.

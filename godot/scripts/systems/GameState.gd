@@ -1,6 +1,5 @@
 extends Node
-## Autoload: minimal DLRSE state for the vertical slice demo.
-## Log-only emission simulation + single-writer commit.
+## Minimal DLRSE state for vertical slice → expanding toward full game.
 
 signal graph_changed
 signal frame_committed(frame_id: int, hash: int)
@@ -9,6 +8,8 @@ signal scan_activated
 signal snap_created(from_id: int, to_id: int)
 signal sunder_executed(chain: Array)
 signal auditor_intervened
+signal gate_opened
+signal demo_won
 
 const MAX_NODES := 32
 const MAX_EDGES := 64
@@ -20,7 +21,9 @@ var edges: Array[Dictionary] = []
 var scanned: bool = false
 var sunder_count: int = 0
 var auditor_active: bool = false
+var gate_is_open: bool = false
 var last_hash: int = 0
+var snap_count: int = 0
 
 func _ready() -> void:
 	reset_demo()
@@ -33,9 +36,9 @@ func reset_demo() -> void:
 	scanned = false
 	sunder_count = 0
 	auditor_active = false
+	gate_is_open = false
 	last_hash = 0
-	# Hard-coded vertical-slice room graph (5 anchors)
-	# Matches dual-reality street: 3 Vesper + 2 Necropolis bleed anchors
+	snap_count = 0
 	_add_node(0, Vector3(-4, 0, 0), 1, "Vesper_Lamp")
 	_add_node(1, Vector3(-1.5, 0, 2), 1, "Vesper_Conduit")
 	_add_node(2, Vector3(1.5, 0, 1), 0, "Necro_Spire")
@@ -70,12 +73,10 @@ func log_mutation(op_type: String, node_id: int, edge_id: int = -1, payload: Arr
 	mutation_log.append(rec)
 
 func commit_frame() -> bool:
-	# Minimal DCB validation
 	if mutation_log.size() > 16:
 		validation_failed.emit("Budget exceeded")
 		mutation_log.clear()
 		return false
-	# Apply in order (already sequential)
 	for rec in mutation_log:
 		_apply(rec)
 	frame_id += 1
@@ -98,7 +99,12 @@ func _apply(rec: Dictionary) -> void:
 			if from_id >= 0 and to_id >= 0 and from_id < nodes.size() and to_id < nodes.size():
 				if nodes[from_id].locked or nodes[to_id].locked:
 					return
+				# Prevent duplicate edges
+				for e in edges:
+					if (e.from == from_id and e.to == to_id) or (e.from == to_id and e.to == from_id):
+						return
 				edges.append({"from": from_id, "to": to_id, "strength": 1.0, "corrupted": false})
+				snap_count += 1
 				snap_created.emit(from_id, to_id)
 		"SUNDER":
 			var chain: Array = []
@@ -107,9 +113,11 @@ func _apply(rec: Dictionary) -> void:
 					chain.append(e)
 			sunder_count += 1
 			sunder_executed.emit(chain)
-			# Simple resolution: unlock gate if chain connects lamp to gate
 			if _has_path(0, 3):
 				nodes[3]["label"] = "Vesper_Gate_OPEN"
+				gate_is_open = true
+				gate_opened.emit()
+				demo_won.emit()
 		"AUD_LOCK":
 			var nid: int = rec.node
 			if nid >= 0 and nid < nodes.size():
@@ -152,6 +160,3 @@ func get_revealed_nodes() -> Array:
 		if n.revealed or scanned:
 			out.append(n)
 	return out
-
-func get_edges() -> Array:
-	return edges
