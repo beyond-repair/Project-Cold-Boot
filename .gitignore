@@ -1,0 +1,44 @@
+# Godot
+.godot/
+*.translation
+export_presets.cfg
+export/
+
+# Build / GDExtension
+bin/
+lib/
+*.so
+*.dll
+*.dylib
+*.o
+*.a
+*.os
+*.bc
+*.obj
+*.pdb
+*.exp
+*.lib
+.sconsign.dblite
+.sconf_temp/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python / tooling
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Logs / temp
+*.log
+*.tmp
+*.bak
