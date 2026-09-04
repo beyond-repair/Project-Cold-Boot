@@ -1,5 +1,5 @@
 extends Node
-## District spine + biased Auditor.
+## Max foundation: threat coupling, Rollback timer, Null Walker stub.
 
 signal graph_changed
 signal frame_committed(frame_id: int, hash: int)
@@ -12,20 +12,23 @@ signal gate_opened
 signal demo_won
 signal room_changed(room_id: int)
 signal kernel_changed(kernel_name: String)
+signal null_walker_stirred(message: String)
+signal rollback_tick(seconds_left: int)
 
 const QUANT_SCALE := 1000
 const MAX_MUTATIONS_PER_FRAME := 16
 const MAX_HISTORY := 64
+const ROLLBACK_SECONDS := 47
 
 enum Kernel { FINAL_COMMIT, FORCE_REVERT, KEEP_DRAFTING }
 
 const DISTRICTS := [
-	{"id": 1, "name": "Compiler Heights", "threat": 0.9, "blurb": "Where reality is written.", "sable": "Orpheus is listening. Stay unreadable."},
-	{"id": 2, "name": "Static Market", "threat": 0.68, "blurb": "Trade in what was.", "sable": "Every memory here has a price. You already paid."},
-	{"id": 3, "name": "Ghost Rail", "threat": 0.5, "blurb": "Transit between impossible places.", "sable": "The schedule lies. Trust the seam."},
-	{"id": 4, "name": "Rollback District", "threat": 0.7, "blurb": "Break the 47-second cycle.", "sable": "Patterns are cages. Break one variable."},
-	{"id": 5, "name": "Dead Repository", "threat": 0.82, "blurb": "Archives of what never was.", "sable": "Wardens restore what you destroy. Be faster."},
-	{"id": 6, "name": "The Sink", "threat": 0.95, "blurb": "Where deleted realities go to die.", "sable": "If you fall here, even I can't pull the draft back."}
+	{"id": 1, "name": "Compiler Heights", "threat": 0.90, "blurb": "Where reality is written.", "sable": "Orpheus is listening. Stay unreadable.", "intel": "Heavy Auditor presence. Reality rule terminals."},
+	{"id": 2, "name": "Static Market", "threat": 0.68, "blurb": "Trade in what was.", "sable": "Every memory here has a price.", "intel": "Memory trades. Betrayal risk on obvious paths."},
+	{"id": 3, "name": "Ghost Rail", "threat": 0.50, "blurb": "Transit between impossible places.", "sable": "The schedule lies. Trust the seam.", "intel": "Moving segments. Prefer alternate mid-nodes."},
+	{"id": 4, "name": "Rollback District", "threat": 0.70, "blurb": "Break the 47-second cycle.", "sable": "Patterns are cages. Break one variable.", "intel": "47s soft loop pressure. Change the graph before reset tone hits."},
+	{"id": 5, "name": "Dead Repository", "threat": 0.82, "blurb": "Archives of what never was.", "sable": "Wardens restore what you destroy.", "intel": "Null Walker may strip a mid-edge. Stay branched."},
+	{"id": 6, "name": "The Sink", "threat": 0.95, "blurb": "Where deleted realities go to die.", "sable": "If you fall here, even I can't pull the draft back.", "intel": "Extreme threat. Layer-0 dominance. Null Walker active."}
 ]
 
 var frame_id: int = 0
@@ -43,8 +46,10 @@ var last_reject_reason: String = ""
 var current_room: int = 1
 var current_kernel: Kernel = Kernel.FINAL_COMMIT
 var rooms_completed: int = 0
-var last_path_nodes: Array = []  # nodes used in recent SNAPs
+var last_path_nodes: Array = []
 var last_sable_line: String = ""
+var rollback_left: int = ROLLBACK_SECONDS
+var null_walker_fired: bool = false
 
 func _ready() -> void:
 	reset_demo()
@@ -57,6 +62,15 @@ func get_district_name() -> String:
 
 func get_sable_line() -> String:
 	return str(get_district().get("sable", "Stay unreadable."))
+
+func get_intel() -> String:
+	return str(get_district().get("intel", ""))
+
+func is_rollback_district() -> bool:
+	return current_room == 4
+
+func null_walker_enabled() -> bool:
+	return current_room >= 5
 
 func set_kernel(k: Kernel) -> void:
 	current_kernel = k
@@ -87,6 +101,8 @@ func reset_demo() -> void:
 	rooms_completed = 0
 	last_path_nodes.clear()
 	last_sable_line = ""
+	rollback_left = ROLLBACK_SECONDS
+	null_walker_fired = false
 	_load_room(1)
 	graph_changed.emit()
 
@@ -100,6 +116,8 @@ func go_to_room(room_id: int) -> void:
 	gate_is_open = false
 	snap_count = 0
 	last_path_nodes.clear()
+	rollback_left = ROLLBACK_SECONDS
+	null_walker_fired = false
 	_load_room(current_room)
 	room_changed.emit(current_room)
 	graph_changed.emit()
@@ -109,6 +127,19 @@ func next_room() -> void:
 		go_to_room(current_room + 1)
 	else:
 		go_to_room(1)
+
+func tick_rollback(delta: float) -> void:
+	if not is_rollback_district() or gate_is_open or not scanned:
+		return
+	rollback_left = max(0, rollback_left - int(ceil(delta)))
+	rollback_tick.emit(rollback_left)
+	if rollback_left <= 0:
+		# Soft reset of edges — pattern cage
+		edges.clear()
+		snap_count = 0
+		last_path_nodes.clear()
+		rollback_left = ROLLBACK_SECONDS
+		graph_changed.emit()
 
 func _load_room(room_id: int) -> void:
 	nodes.clear()
@@ -162,7 +193,7 @@ func _fq(qi: Vector3i) -> Vector3:
 	return Vector3(float(qi.x) / QUANT_SCALE, float(qi.y) / QUANT_SCALE, float(qi.z) / QUANT_SCALE)
 
 func _add_node(id: int, qpos: Vector3i, layer: int, label: String) -> void:
-	nodes.append({"id": id, "qpos": qpos, "layer": layer, "label": label, "active": true, "revealed": false, "locked": false, "domain": [1.0, 0.0, 0.0, 0.0]})
+	nodes.append({"id": id, "qpos": qpos, "layer": layer, "label": label, "active": true, "revealed": false, "locked": false})
 
 func get_node_pos(id: int) -> Vector3:
 	if id < 0 or id >= nodes.size():
@@ -177,12 +208,19 @@ func log_mutation(op_type: String, node_id: int, edge_id: int = -1, payload: Arr
 	mutation_log.append({"frame": frame_id, "seq": mutation_log.size(), "priority": priority, "op": op_type, "node": node_id, "edge": edge_id, "payload": payload})
 
 func commit_frame() -> bool:
-	if not _validate_budget():
+	if mutation_log.size() > MAX_MUTATIONS_PER_FRAME:
 		return _reject("Budget exceeded")
-	if not _validate_partitions():
-		return _reject("Partition integrity failed")
-	if not _validate_graph_sanity():
-		return _reject("Graph sanity failed")
+	for rec in mutation_log:
+		var nid: int = rec.node
+		if nid < -1 or (nid >= 0 and nid >= nodes.size()):
+			return _reject("Partition integrity failed")
+		if rec.op == "SNAP":
+			var a: int = rec.node
+			var b: int = rec.edge
+			if a >= 0 and a < nodes.size() and nodes[a].locked:
+				return _reject("Graph sanity failed")
+			if b >= 0 and b < nodes.size() and nodes[b].locked:
+				return _reject("Graph sanity failed")
 	mutation_log.sort_custom(func(a, b):
 		if a.priority != b.priority:
 			return a.priority < b.priority
@@ -206,27 +244,6 @@ func _reject(reason: String) -> bool:
 	mutation_log.clear()
 	return false
 
-func _validate_budget() -> bool:
-	return mutation_log.size() <= MAX_MUTATIONS_PER_FRAME
-
-func _validate_partitions() -> bool:
-	for rec in mutation_log:
-		var nid: int = rec.node
-		if nid < -1 or (nid >= 0 and nid >= nodes.size()):
-			return false
-	return true
-
-func _validate_graph_sanity() -> bool:
-	for rec in mutation_log:
-		if rec.op == "SNAP":
-			var a: int = rec.node
-			var b: int = rec.edge
-			if a >= 0 and a < nodes.size() and nodes[a].locked:
-				return false
-			if b >= 0 and b < nodes.size() and nodes[b].locked:
-				return false
-	return true
-
 func _node_degree(id: int) -> int:
 	var d := 0
 	for e in edges:
@@ -234,26 +251,21 @@ func _node_degree(id: int) -> int:
 			d += 1
 	return d
 
-## Biased Auditor target: centrality + path memory + Layer-0 + avoid 0/3 endpoints if possible
 func pick_auditor_lock_target() -> int:
 	var best_id := -1
 	var best_score := -1.0
 	var threat: float = float(get_district().threat)
 	for n in nodes:
 		var id: int = n.id
-		if n.locked:
+		if n.locked or id == 0 or id == 3:
 			continue
-		if id == 0 or id == 3:
-			continue  # don't hard-lock start/exit; force re-route around hubs
-		var score := 0.0
-		score += float(_node_degree(id)) * 2.0
+		var score := float(_node_degree(id)) * 2.0
 		if id in last_path_nodes:
 			score += 3.0
 		if int(n.layer) == 0:
-			score += 1.5 * threat  # Necropolis pressure
+			score += 1.5 * threat
 		else:
 			score += 0.5
-		# Kernel weight: Final Commit prefers hubs harder
 		if current_kernel == Kernel.FINAL_COMMIT:
 			score += float(_node_degree(id))
 		elif current_kernel == Kernel.KEEP_DRAFTING:
@@ -264,6 +276,25 @@ func pick_auditor_lock_target() -> int:
 	if best_id < 0 and nodes.size() > 2:
 		best_id = 1
 	return best_id
+
+func _maybe_null_walker() -> void:
+	if null_walker_fired or not null_walker_enabled():
+		return
+	if edges.size() < 2:
+		return
+	if snap_count < 2:
+		return
+	# Strip one non-critical edge (not on a sole bridge if possible)
+	var idx := edges.size() - 1
+	var e = edges[idx]
+	if e.from == 0 or e.to == 3:
+		if edges.size() > 1:
+			idx = 0
+			e = edges[idx]
+	edges.remove_at(idx)
+	null_walker_fired = true
+	null_walker_stirred.emit("NULL WALKER — an edge between timelines was removed.")
+	graph_changed.emit()
 
 func _apply(rec: Dictionary) -> void:
 	match rec.op:
@@ -291,6 +322,7 @@ func _apply(rec: Dictionary) -> void:
 			if last_path_nodes.size() > 12:
 				last_path_nodes.pop_front()
 			snap_created.emit(from_id, to_id)
+			_maybe_null_walker()
 		"SUNDER":
 			var chain: Array = []
 			for e in edges:
@@ -339,7 +371,7 @@ func _compute_hash() -> int:
 		if n.locked:
 			h ^= 0xA11D
 	for e in edges:
-		h = (h * 13 + e.from * 7 + e.to) ^ int(e.strength * 100)
+		h = (h * 13 + e.from * 7 + e.to)
 	return h
 
 func get_history_summary() -> String:
@@ -351,17 +383,15 @@ func get_history_summary() -> String:
 	return "\n".join(lines)
 
 func get_auditor_lock_threshold() -> int:
-	# Higher district threat → slightly earlier intervention
 	var base := 1
 	match current_kernel:
 		Kernel.FINAL_COMMIT: base = 1
 		Kernel.FORCE_REVERT: base = 2
 		Kernel.KEEP_DRAFTING: base = 3
-	var threat: float = float(get_district().threat)
-	if threat >= 0.85 and base > 1:
+	if float(get_district().threat) >= 0.85 and base > 1:
 		base -= 1
 	return max(1, base)
 
 func get_room_objective() -> String:
 	var d = get_district()
-	return "%s: connect 0 → 3, then SUNDER — %s" % [d.name, d.blurb]
+	return "%s: 0 → 3 then SUNDER — %s" % [d.name, d.blurb]
