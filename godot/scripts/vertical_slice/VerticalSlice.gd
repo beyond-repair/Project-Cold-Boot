@@ -1,5 +1,5 @@
 extends Node3D
-## District spine UI + loop.
+## District spine + biased Auditor integration.
 
 @onready var status_label: Label = $UI/StatusLabel
 @onready var help_label: Label = $UI/HelpLabel
@@ -24,7 +24,6 @@ extends Node3D
 @onready var floor_mesh: MeshInstance3D = $Floor
 
 var selected_node: int = -1
-var node_meshes: Dictionary = {}
 var demo_complete: bool = false
 var paused: bool = false
 var show_history: bool = true
@@ -51,8 +50,8 @@ func _ready() -> void:
 	_update_objective()
 	_update_kernel_ui()
 	_update_room_ui()
-	_update_ui("Compiler Heights. E = SCAN. Outsmart the Compiler.")
-	help_label.text = "E SCAN | LMB SNAP | SPACE SUNDER | R Reset | Esc Pause | H History | 1/2/3 Kernel | N Next District | F5/F9 Save/Load"
+	_update_ui("%s. E = SCAN." % GameState.get_district_name())
+	help_label.text = "E SCAN | LMB SNAP | SPACE SUNDER | R Reset | Esc Pause | H History | 1/2/3 Kernel | N Next | F5/F9 Save/Load"
 
 func _setup_compositor() -> void:
 	if compositor_rect == null:
@@ -136,7 +135,7 @@ func _unhandled_input(event: InputEvent) -> void:
 					win_panel.visible = false
 					selected_node = -1
 					_set_bleed(0.12 + GameState.get_district().threat * 0.15)
-					_update_ui("Entered %s. %s" % [GameState.get_district_name(), GameState.get_district().blurb])
+					_update_ui("%s — %s" % [GameState.get_district_name(), GameState.get_district().blurb])
 				return
 			KEY_F5:
 				_save_run()
@@ -158,10 +157,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		_try_select_node()
 
 func _save_run() -> void:
-	var data := {"frame_id": GameState.frame_id, "current_room": GameState.current_room, "current_kernel": GameState.current_kernel, "rooms_completed": GameState.rooms_completed, "scanned": GameState.scanned, "gate_is_open": GameState.gate_is_open, "snap_count": GameState.snap_count, "sunder_count": GameState.sunder_count, "auditor_active": GameState.auditor_active, "last_hash": GameState.last_hash, "history": GameState.history.duplicate(true), "edges": GameState.edges.duplicate(true), "nodes_locked": [], "nodes_revealed": []}
+	var data := {"frame_id": GameState.frame_id, "current_room": GameState.current_room, "current_kernel": GameState.current_kernel, "rooms_completed": GameState.rooms_completed, "scanned": GameState.scanned, "gate_is_open": GameState.gate_is_open, "snap_count": GameState.snap_count, "edges": GameState.edges.duplicate(true), "history": GameState.history.duplicate(true), "nodes_locked": [], "last_path": GameState.last_path_nodes.duplicate()}
 	for n in GameState.nodes:
 		if n.locked: data.nodes_locked.append(n.id)
-		if n.revealed: data.nodes_revealed.append(n.id)
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if file:
 		file.store_string(JSON.stringify(data))
@@ -184,12 +182,16 @@ func _load_run() -> void:
 	GameState.gate_is_open = bool(data.get("gate_is_open", false))
 	GameState.edges = data.get("edges", [])
 	GameState.history = data.get("history", [])
+	GameState.last_path_nodes = data.get("last_path", [])
 	var locked: Array = data.get("nodes_locked", [])
 	for n in GameState.nodes:
 		n.locked = n.id in locked
 		n.revealed = GameState.scanned
 	demo_complete = GameState.gate_is_open
-	auditor_mesh.visible = GameState.auditor_active
+	auditor_mesh.visible = false
+	for n in GameState.nodes:
+		if n.locked:
+			auditor_mesh.visible = true
 	sable_mesh.visible = GameState.gate_is_open
 	win_panel.visible = GameState.gate_is_open
 	GameState.graph_changed.emit()
@@ -222,7 +224,7 @@ func _do_scan() -> void:
 	GameState.log_mutation("SCAN", 0, -1, [], 0)
 	if GameState.commit_frame():
 		_set_bleed(0.35 + GameState.get_district().threat * 0.25)
-		_update_ui("SCAN — anchors live in %s" % GameState.get_district_name())
+		_update_ui("SCAN — %s" % GameState.get_district_name())
 		_update_objective()
 
 func _try_select_node() -> void:
@@ -241,7 +243,7 @@ func _try_select_node() -> void:
 	if collider and collider.has_meta("node_id"):
 		var id: int = collider.get_meta("node_id")
 		if GameState.nodes[id].locked:
-			_update_ui("Auditor lock.")
+			_update_ui("Auditor lock on [%d]." % id)
 			return
 		if selected_node == -1:
 			selected_node = id
@@ -254,7 +256,9 @@ func _do_snap(from_id: int, to_id: int) -> void:
 	GameState.begin_frame()
 	GameState.log_mutation("SNAP", from_id, to_id, [], 0)
 	if GameState.snap_count >= GameState.get_auditor_lock_threshold() and not GameState.auditor_active:
-		GameState.log_mutation("AUD_LOCK", mini(2, GameState.nodes.size() - 1), -1, [], 2)
+		var target := GameState.pick_auditor_lock_target()
+		if target >= 0:
+			GameState.log_mutation("AUD_LOCK", target, -1, [], 2)
 	if GameState.commit_frame():
 		_update_objective()
 
@@ -274,18 +278,22 @@ func _on_snap(a: int, b: int) -> void:
 	_update_ui("SNAP %d → %d" % [a, b])
 
 func _on_sunder(_c: Array) -> void:
-	_update_ui("SUNDER — gate open." if GameState.gate_is_open else "SUNDER — path 0→3 incomplete.")
+	_update_ui("Gate open." if GameState.gate_is_open else "Path 0→3 incomplete.")
 
 func _on_auditor() -> void:
 	auditor_mesh.visible = true
-	_update_ui("AUDITOR — %s" % GameState.get_kernel_name())
+	_update_ui("AUDITOR biased lock — %s" % GameState.get_kernel_name())
 
 func _on_win() -> void:
 	demo_complete = true
 	sable_mesh.visible = true
 	win_panel.visible = true
 	_set_bleed(0.7)
-	_update_ui("%s rewritten. N = next district." % GameState.get_district_name())
+	var line := GameState.last_sable_line if GameState.last_sable_line != "" else GameState.get_sable_line()
+	_update_ui("%s clear. Sable: \"%s\" | N next" % [GameState.get_district_name(), line])
+	var win_label = win_panel.get_node_or_null("WinLabel")
+	if win_label:
+		win_label.text = "%s REWRITTEN\nSable: \"%s\"\nN = next district | F5 = save" % [GameState.get_district_name(), line]
 
 func _on_room_changed(_id: int) -> void:
 	_update_room_ui()
@@ -326,7 +334,6 @@ func _rebuild_visuals() -> void:
 		c.queue_free()
 	for c in edge_container.get_children():
 		c.queue_free()
-	node_meshes.clear()
 	for n in GameState.nodes:
 		var mi := MeshInstance3D.new()
 		var sphere := SphereMesh.new()
