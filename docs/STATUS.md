@@ -1,19 +1,22 @@
-# Status — Building
+# Status
 
 **Repo**: https://github.com/beyond-repair/Project-Cold-Boot
 
-## Current playable
+## Locked this commit
 
-- 3 rooms (N to advance after clear)
-- SCAN / SNAP / SUNDER, Kernels, Auditor, Sable
-- Save F5 / Load F9
-- Options on main menu
-- Domain-warp compositor + dual SubViewport scaffold
-- Art direction locked to reference images
+- Full **Visual Bible** from user art package
+- **Six districts** defined with threat + gameplay
+- Art direction hard-lock (city, characters, energy, dual reality)
 
-## Controls
+## Playable
 
-E SCAN | LMB SNAP | Space SUNDER | R Reset | Esc Pause | H History  
-1/2/3 Kernel | N Next room | F5 Save | F9 Load
+- SCAN / SNAP / SUNDER, 3 rooms, Kernels, Auditor, Sable presence
+- Save/Load, options, dual SubViewport + domain-warp shaders
 
-Open `godot/` in Godot 4.2+ → F5.
+## Next build priority (art-true)
+
+1. Compiler Heights blockout matching FPS key art proportions
+2. Violet emission + wet street materials everywhere
+3. Tool icons / simple FPS hand + device
+4. Sable + Auditor portrait cards in UI
+5. District select stub using the six districts
