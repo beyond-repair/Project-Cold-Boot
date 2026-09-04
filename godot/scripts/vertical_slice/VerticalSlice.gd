@@ -1,5 +1,5 @@
 extends Node3D
-## Continued build: 3 rooms, clearer flow.
+## District spine UI + loop.
 
 @onready var status_label: Label = $UI/StatusLabel
 @onready var help_label: Label = $UI/HelpLabel
@@ -29,7 +29,6 @@ var demo_complete: bool = false
 var paused: bool = false
 var show_history: bool = true
 var compositor_mat: ShaderMaterial
-
 const SAVE_PATH := "user://coldboot_run.save"
 
 func _ready() -> void:
@@ -52,8 +51,8 @@ func _ready() -> void:
 	_update_objective()
 	_update_kernel_ui()
 	_update_room_ui()
-	_update_ui("Press E to SCAN. Three rooms. F5 save | F9 load.")
-	help_label.text = "E=SCAN LMB=SNAP SPACE=SUNDER R=Reset Esc=Pause H=History | 1/2/3=Kernel N=Next | F5=Save F9=Load"
+	_update_ui("Compiler Heights. E = SCAN. Outsmart the Compiler.")
+	help_label.text = "E SCAN | LMB SNAP | SPACE SUNDER | R Reset | Esc Pause | H History | 1/2/3 Kernel | N Next District | F5/F9 Save/Load"
 
 func _setup_compositor() -> void:
 	if compositor_rect == null:
@@ -70,8 +69,6 @@ func _setup_compositor() -> void:
 	compositor_mat.set_shader_parameter("layer0_tex", tex0)
 	compositor_mat.set_shader_parameter("layer1_tex", tex1)
 	compositor_mat.set_shader_parameter("bleed_intensity", 0.15)
-	compositor_mat.set_shader_parameter("seam_width", 0.04)
-	compositor_mat.set_shader_parameter("warp_strength", 0.55)
 	compositor_mat.set_shader_parameter("violet_seam", Color(0.82, 0.35, 1.0))
 	compositor_mat.set_shader_parameter("seam_emission", 4.5)
 	compositor_rect.material = compositor_mat
@@ -83,8 +80,8 @@ func _set_bleed(amount: float) -> void:
 func _apply_atmosphere() -> void:
 	var floor_mat := StandardMaterial3D.new()
 	floor_mat.albedo_color = Color(0.03, 0.03, 0.05)
-	floor_mat.metallic = 0.7
-	floor_mat.roughness = 0.25
+	floor_mat.metallic = 0.75
+	floor_mat.roughness = 0.22
 	floor_mesh.material_override = floor_mat
 	var aud_mat := StandardMaterial3D.new()
 	aud_mat.albedo_color = Color(0.06, 0.06, 0.08)
@@ -106,7 +103,7 @@ func _apply_atmosphere() -> void:
 	seam_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	bleed_seam.material_override = seam_mat
 
-func _process(_delta: float) -> void:
+func _process(_d: float) -> void:
 	if cam_main and cam_l0 and cam_l1:
 		cam_l0.global_transform = cam_main.global_transform
 		cam_l1.global_transform = cam_main.global_transform
@@ -138,8 +135,8 @@ func _unhandled_input(event: InputEvent) -> void:
 					sable_mesh.visible = false
 					win_panel.visible = false
 					selected_node = -1
-					_set_bleed(0.15)
-					_update_ui("Room %d. %s" % [GameState.current_room, GameState.get_room_objective()])
+					_set_bleed(0.12 + GameState.get_district().threat * 0.15)
+					_update_ui("Entered %s. %s" % [GameState.get_district_name(), GameState.get_district().blurb])
 				return
 			KEY_F5:
 				_save_run()
@@ -161,77 +158,44 @@ func _unhandled_input(event: InputEvent) -> void:
 		_try_select_node()
 
 func _save_run() -> void:
-	var data := {
-		"frame_id": GameState.frame_id,
-		"current_room": GameState.current_room,
-		"current_kernel": GameState.current_kernel,
-		"rooms_completed": GameState.rooms_completed,
-		"scanned": GameState.scanned,
-		"gate_is_open": GameState.gate_is_open,
-		"snap_count": GameState.snap_count,
-		"sunder_count": GameState.sunder_count,
-		"auditor_active": GameState.auditor_active,
-		"last_hash": GameState.last_hash,
-		"history": GameState.history.duplicate(true),
-		"edges": GameState.edges.duplicate(true),
-		"nodes_locked": [],
-		"nodes_revealed": []
-	}
+	var data := {"frame_id": GameState.frame_id, "current_room": GameState.current_room, "current_kernel": GameState.current_kernel, "rooms_completed": GameState.rooms_completed, "scanned": GameState.scanned, "gate_is_open": GameState.gate_is_open, "snap_count": GameState.snap_count, "sunder_count": GameState.sunder_count, "auditor_active": GameState.auditor_active, "last_hash": GameState.last_hash, "history": GameState.history.duplicate(true), "edges": GameState.edges.duplicate(true), "nodes_locked": [], "nodes_revealed": []}
 	for n in GameState.nodes:
-		if n.locked:
-			data.nodes_locked.append(n.id)
-		if n.revealed:
-			data.nodes_revealed.append(n.id)
+		if n.locked: data.nodes_locked.append(n.id)
+		if n.revealed: data.nodes_revealed.append(n.id)
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if file:
 		file.store_string(JSON.stringify(data))
 		file.close()
 		_update_ui("Saved.")
-	else:
-		_update_ui("Save failed.")
 
 func _load_run() -> void:
 	if not FileAccess.file_exists(SAVE_PATH):
 		_update_ui("No save.")
 		return
 	var file := FileAccess.open(SAVE_PATH, FileAccess.READ)
-	if file == null:
-		_update_ui("Load failed.")
-		return
 	var data = JSON.parse_string(file.get_as_text())
 	file.close()
 	if typeof(data) != TYPE_DICTIONARY:
-		_update_ui("Save corrupt.")
 		return
 	GameState.go_to_room(int(data.get("current_room", 1)))
 	GameState.current_kernel = int(data.get("current_kernel", 0))
 	GameState.rooms_completed = int(data.get("rooms_completed", 0))
-	GameState.frame_id = int(data.get("frame_id", 0))
 	GameState.scanned = bool(data.get("scanned", false))
 	GameState.gate_is_open = bool(data.get("gate_is_open", false))
-	GameState.snap_count = int(data.get("snap_count", 0))
-	GameState.sunder_count = int(data.get("sunder_count", 0))
-	GameState.auditor_active = bool(data.get("auditor_active", false))
-	GameState.last_hash = int(data.get("last_hash", 0))
-	GameState.history = data.get("history", [])
 	GameState.edges = data.get("edges", [])
+	GameState.history = data.get("history", [])
 	var locked: Array = data.get("nodes_locked", [])
-	var revealed: Array = data.get("nodes_revealed", [])
 	for n in GameState.nodes:
 		n.locked = n.id in locked
-		n.revealed = n.id in revealed or GameState.scanned
+		n.revealed = GameState.scanned
 	demo_complete = GameState.gate_is_open
 	auditor_mesh.visible = GameState.auditor_active
 	sable_mesh.visible = GameState.gate_is_open
 	win_panel.visible = GameState.gate_is_open
-	bleed_seam.visible = GameState.scanned
-	_set_bleed(0.45 if GameState.scanned else 0.15)
 	GameState.graph_changed.emit()
 	_update_objective()
-	_update_kernel_ui()
 	_update_room_ui()
-	_update_history()
-	_update_ui("Loaded.")
+	_update_ui("Loaded — %s" % GameState.get_district_name())
 
 func _toggle_pause() -> void:
 	paused = not paused
@@ -247,45 +211,37 @@ func _reset() -> void:
 	win_panel.visible = false
 	bleed_seam.visible = false
 	_set_bleed(0.15)
-	_update_ui("Reset. E to SCAN.")
+	_update_ui("Reset. %s" % GameState.get_district_name())
 	_update_objective()
-	_update_history()
 	_update_room_ui()
 
 func _do_scan() -> void:
 	if GameState.scanned:
-		_update_ui("Already scanned.")
 		return
 	GameState.begin_frame()
 	GameState.log_mutation("SCAN", 0, -1, [], 0)
-	if not GameState.commit_frame():
-		_update_ui("Rejected: %s" % GameState.last_reject_reason)
-		return
-	_set_bleed(0.45)
-	_update_ui("SCAN done. SNAP nodes, then SUNDER.")
-	_update_objective()
-	_update_history()
+	if GameState.commit_frame():
+		_set_bleed(0.35 + GameState.get_district().threat * 0.25)
+		_update_ui("SCAN — anchors live in %s" % GameState.get_district_name())
+		_update_objective()
 
 func _try_select_node() -> void:
 	if not GameState.scanned:
-		_update_ui("Scan first (E).")
+		_update_ui("SCAN first (E).")
 		return
 	var cam := get_viewport().get_camera_3d()
 	if cam == null:
 		return
-	var mouse := get_viewport().get_mouse_position()
-	var from := cam.project_ray_origin(mouse)
-	var dir := cam.project_ray_normal(mouse)
-	var space := get_world_3d().direct_space_state
-	var query := PhysicsRayQueryParameters3D.create(from, from + dir * 100.0)
-	var result := space.intersect_ray(query)
+	var from := cam.project_ray_origin(get_viewport().get_mouse_position())
+	var dir := cam.project_ray_normal(get_viewport().get_mouse_position())
+	var result := get_world_3d().direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(from, from + dir * 100.0))
 	if result.is_empty():
 		return
 	var collider = result.collider
 	if collider and collider.has_meta("node_id"):
 		var id: int = collider.get_meta("node_id")
 		if GameState.nodes[id].locked:
-			_update_ui("Locked by Auditor.")
+			_update_ui("Auditor lock.")
 			return
 		if selected_node == -1:
 			selected_node = id
@@ -297,86 +253,73 @@ func _try_select_node() -> void:
 func _do_snap(from_id: int, to_id: int) -> void:
 	GameState.begin_frame()
 	GameState.log_mutation("SNAP", from_id, to_id, [], 0)
-	var threshold = GameState.get_auditor_lock_threshold()
-	if GameState.snap_count >= threshold and not GameState.auditor_active:
-		var lock_target = mini(2, GameState.nodes.size() - 1)
-		GameState.log_mutation("AUD_LOCK", lock_target, -1, [], 2)
-	if not GameState.commit_frame():
-		_update_ui("Rejected: %s" % GameState.last_reject_reason)
-		return
-	_update_objective()
-	_update_history()
+	if GameState.snap_count >= GameState.get_auditor_lock_threshold() and not GameState.auditor_active:
+		GameState.log_mutation("AUD_LOCK", mini(2, GameState.nodes.size() - 1), -1, [], 2)
+	if GameState.commit_frame():
+		_update_objective()
 
 func _do_sunder() -> void:
 	if GameState.edges.is_empty():
-		_update_ui("No links to SUNDER.")
+		_update_ui("No chain.")
 		return
 	GameState.begin_frame()
 	GameState.log_mutation("SUNDER", 0, -1, [], 0)
-	if not GameState.commit_frame():
-		_update_ui("Rejected: %s" % GameState.last_reject_reason)
-		return
-	_update_objective()
-	_update_history()
+	if GameState.commit_frame():
+		_update_objective()
 
 func _on_scan() -> void:
 	bleed_seam.visible = true
 
-func _on_snap(from_id: int, to_id: int) -> void:
-	_update_ui("SNAP %d → %d" % [from_id, to_id])
+func _on_snap(a: int, b: int) -> void:
+	_update_ui("SNAP %d → %d" % [a, b])
 
-func _on_sunder(chain: Array) -> void:
-	if GameState.gate_is_open:
-		_update_ui("OPEN. N = next room.")
-	else:
-		_update_ui("SUNDER (%d). Path 0→3 incomplete." % chain.size())
+func _on_sunder(_c: Array) -> void:
+	_update_ui("SUNDER — gate open." if GameState.gate_is_open else "SUNDER — path 0→3 incomplete.")
 
 func _on_auditor() -> void:
 	auditor_mesh.visible = true
-	_update_ui("AUDITOR lock. Kernel: %s" % GameState.get_kernel_name())
+	_update_ui("AUDITOR — %s" % GameState.get_kernel_name())
 
 func _on_win() -> void:
 	demo_complete = true
 	sable_mesh.visible = true
 	win_panel.visible = true
-	_set_bleed(0.62)
-	_update_ui("Room %d clear. N next | F5 save." % GameState.current_room)
+	_set_bleed(0.7)
+	_update_ui("%s rewritten. N = next district." % GameState.get_district_name())
 
 func _on_room_changed(_id: int) -> void:
 	_update_room_ui()
 	_update_objective()
 	bleed_seam.visible = false
 
-func _on_kernel_changed(name: String) -> void:
+func _on_kernel_changed(n: String) -> void:
 	_update_kernel_ui()
-	_update_ui("Kernel: %s" % name)
+	_update_ui("Kernel: %s" % n)
 
-func _on_committed(_fid: int, h: int) -> void:
-	hash_label.text = "Hash: %d | Edges: %d | Sunders: %d | Frame: %d" % [h, GameState.edges.size(), GameState.sunder_count, _fid]
-	_update_history()
+func _on_committed(_f: int, h: int) -> void:
+	hash_label.text = "Hash %d | Edges %d | %s" % [h, GameState.edges.size(), GameState.get_district_name()]
+	history_label.text = "History:\n" + GameState.get_history_summary()
 
-func _on_validation_failed(reason: String) -> void:
-	_update_ui("Fail: %s" % reason)
+func _on_validation_failed(r: String) -> void:
+	_update_ui("Reject: %s" % r)
 
 func _update_ui(msg: String) -> void:
 	status_label.text = msg
 
 func _update_objective() -> void:
 	if not GameState.scanned:
-		objective_label.text = GameState.get_room_objective() + " — SCAN (E)"
+		objective_label.text = GameState.get_room_objective() + " | SCAN (E)"
 	elif not GameState.gate_is_open:
-		objective_label.text = GameState.get_room_objective() + " — SNAP then SUNDER"
+		objective_label.text = GameState.get_room_objective() + " | SNAP then SUNDER"
 	else:
-		objective_label.text = "Room %d complete — N next" % GameState.current_room
-
-func _update_history() -> void:
-	history_label.text = "History:\n" + GameState.get_history_summary()
+		objective_label.text = GameState.get_district_name() + " clear — N next"
 
 func _update_kernel_ui() -> void:
-	kernel_label.text = "Kernel: %s (1/2/3)" % GameState.get_kernel_name()
+	kernel_label.text = "Kernel: %s" % GameState.get_kernel_name()
 
 func _update_room_ui() -> void:
-	room_label.text = "Room: %d / 3 | Cleared: %d" % [GameState.current_room, GameState.rooms_completed]
+	var d = GameState.get_district()
+	room_label.text = "%s (%d/%d) | Threat %d%% | Cleared %d" % [d.name, GameState.current_room, GameState.DISTRICTS.size(), int(d.threat * 100), GameState.rooms_completed]
 
 func _rebuild_visuals() -> void:
 	for c in node_container.get_children():
@@ -391,10 +334,7 @@ func _rebuild_visuals() -> void:
 		sphere.height = 0.76
 		mi.mesh = sphere
 		var mat := StandardMaterial3D.new()
-		if n.layer == 0:
-			mat.albedo_color = Color(0.28, 0.06, 0.38)
-		else:
-			mat.albedo_color = Color(0.12, 0.35, 0.55)
+		mat.albedo_color = Color(0.28, 0.06, 0.38) if n.layer == 0 else Color(0.12, 0.35, 0.55)
 		mat.metallic = 0.35
 		mat.roughness = 0.3
 		if n.revealed or GameState.scanned:
@@ -404,9 +344,7 @@ func _rebuild_visuals() -> void:
 		if n.locked:
 			mat.albedo_color = Color(0.55, 0.08, 0.1)
 			mat.emission = Color(1.0, 0.15, 0.2)
-			mat.emission_energy_multiplier = 4.0
 		if str(n.label).ends_with("_OPEN"):
-			mat.albedo_color = Color(0.15, 0.7, 0.35)
 			mat.emission = Color(0.3, 1.0, 0.55)
 		mi.material_override = mat
 		mi.position = GameState.get_node_pos(n.id)
@@ -419,15 +357,14 @@ func _rebuild_visuals() -> void:
 		body.add_child(col)
 		body.set_meta("node_id", n.id)
 		mi.add_child(body)
-		node_meshes[n.id] = mi
 	for e in GameState.edges:
-		var from_pos: Vector3 = GameState.get_node_pos(e.from)
-		var to_pos: Vector3 = GameState.get_node_pos(e.to)
+		var a: Vector3 = GameState.get_node_pos(e.from)
+		var b: Vector3 = GameState.get_node_pos(e.to)
 		var mi := MeshInstance3D.new()
 		var cyl := CylinderMesh.new()
 		cyl.top_radius = 0.07
 		cyl.bottom_radius = 0.07
-		cyl.height = from_pos.distance_to(to_pos)
+		cyl.height = a.distance_to(b)
 		mi.mesh = cyl
 		var mat := StandardMaterial3D.new()
 		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -436,7 +373,7 @@ func _rebuild_visuals() -> void:
 		mat.emission = Color(0.85, 0.35, 1.0)
 		mat.emission_energy_multiplier = 6.0
 		mi.material_override = mat
-		mi.position = (from_pos + to_pos) / 2.0
-		mi.look_at(to_pos, Vector3.UP)
+		mi.position = (a + b) / 2.0
+		mi.look_at(b, Vector3.UP)
 		mi.rotate_object_local(Vector3.RIGHT, PI / 2.0)
 		edge_container.add_child(mi)

@@ -1,5 +1,5 @@
 extends Node
-## DLRSE simulation — continued build: 3 rooms.
+## District-aware simulation spine.
 
 signal graph_changed
 signal frame_committed(frame_id: int, hash: int)
@@ -16,9 +16,18 @@ signal kernel_changed(kernel_name: String)
 const QUANT_SCALE := 1000
 const MAX_MUTATIONS_PER_FRAME := 16
 const MAX_HISTORY := 64
-const MAX_ROOM := 3
 
 enum Kernel { FINAL_COMMIT, FORCE_REVERT, KEEP_DRAFTING }
+
+# District order matches VISUAL_BIBLE / DISTRICTS.md
+const DISTRICTS := [
+	{"id": 1, "name": "Compiler Heights", "threat": 0.9, "blurb": "Where reality is written."},
+	{"id": 2, "name": "Static Market", "threat": 0.68, "blurb": "Trade in what was. Buy what could be."},
+	{"id": 3, "name": "Ghost Rail", "threat": 0.5, "blurb": "Transit between impossible places."},
+	{"id": 4, "name": "Rollback District", "threat": 0.7, "blurb": "Break the 47-second cycle."},
+	{"id": 5, "name": "Dead Repository", "threat": 0.82, "blurb": "Archives of what never was."},
+	{"id": 6, "name": "The Sink", "threat": 0.95, "blurb": "Where deleted realities go to die."}
+]
 
 var frame_id: int = 0
 var mutation_log: Array[Dictionary] = []
@@ -38,6 +47,13 @@ var rooms_completed: int = 0
 
 func _ready() -> void:
 	reset_demo()
+
+func get_district() -> Dictionary:
+	var idx = clamp(current_room - 1, 0, DISTRICTS.size() - 1)
+	return DISTRICTS[idx]
+
+func get_district_name() -> String:
+	return str(get_district().name)
 
 func set_kernel(k: Kernel) -> void:
 	current_kernel = k
@@ -70,7 +86,7 @@ func reset_demo() -> void:
 	graph_changed.emit()
 
 func go_to_room(room_id: int) -> void:
-	current_room = clamp(room_id, 1, MAX_ROOM)
+	current_room = clamp(room_id, 1, DISTRICTS.size())
 	mutation_log.clear()
 	edges.clear()
 	scanned = false
@@ -83,37 +99,55 @@ func go_to_room(room_id: int) -> void:
 	graph_changed.emit()
 
 func next_room() -> void:
-	if current_room < MAX_ROOM:
+	if current_room < DISTRICTS.size():
 		go_to_room(current_room + 1)
 	else:
-		# Loop back for endless practice or stay on 3
 		go_to_room(1)
 
 func _load_room(room_id: int) -> void:
 	nodes.clear()
 	match room_id:
-		1:
-			_add_node(0, _q(Vector3(-4, 0, 0)), 1, "Vesper_Lamp")
-			_add_node(1, _q(Vector3(-1.5, 0, 2)), 1, "Vesper_Conduit")
+		1: # Compiler Heights — mixed, tutorial clarity
+			_add_node(0, _q(Vector3(-4, 0, 0)), 1, "Orpheus_Lamp")
+			_add_node(1, _q(Vector3(-1.5, 0, 2)), 1, "Security_Grid")
 			_add_node(2, _q(Vector3(1.5, 0, 1)), 0, "Necro_Spire")
-			_add_node(3, _q(Vector3(4, 0, -1)), 1, "Vesper_Gate")
-			_add_node(4, _q(Vector3(0, 0, -3)), 0, "Necro_Anchor")
-		2:
-			_add_node(0, _q(Vector3(-3, 0, 1)), 0, "Necro_Root")
-			_add_node(1, _q(Vector3(0, 0, 2.5)), 1, "Vesper_Relay")
-			_add_node(2, _q(Vector3(3, 0, 0.5)), 0, "Necro_Vault")
-			_add_node(3, _q(Vector3(0, 0, -2.5)), 1, "Vesper_Exit")
-			_add_node(4, _q(Vector3(-2, 0, -1)), 0, "Necro_Echo")
-			_add_node(5, _q(Vector3(2, 0, -1.5)), 1, "Vesper_Lock")
-		3:
-			# Heavier Necropolis pressure — more Layer 0 nodes
-			_add_node(0, _q(Vector3(-3.5, 0, 0)), 0, "Necro_Heart")
-			_add_node(1, _q(Vector3(-1, 0, 2)), 0, "Necro_Rib")
-			_add_node(2, _q(Vector3(1.5, 0, 2.2)), 1, "Vesper_Spike")
-			_add_node(3, _q(Vector3(3.5, 0, 0)), 0, "Necro_Gate")
-			_add_node(4, _q(Vector3(0, 0, -2.8)), 1, "Vesper_Thin")
-			_add_node(5, _q(Vector3(-2, 0, -1.5)), 0, "Necro_Ash")
-			_add_node(6, _q(Vector3(2, 0, -1.2)), 0, "Necro_Seal")
+			_add_node(3, _q(Vector3(4, 0, -1)), 1, "Core_Gate")
+			_add_node(4, _q(Vector3(0, 0, -3)), 0, "Rule_Terminal")
+		2: # Static Market
+			_add_node(0, _q(Vector3(-3, 0, 1)), 0, "Memory_Stall")
+			_add_node(1, _q(Vector3(0, 0, 2.5)), 1, "Fixer_Relay")
+			_add_node(2, _q(Vector3(3, 0, 0.5)), 0, "Black_Ledger")
+			_add_node(3, _q(Vector3(0, 0, -2.5)), 1, "Market_Exit")
+			_add_node(4, _q(Vector3(-2, 0, -1)), 0, "Stolen_Anchor")
+			_add_node(5, _q(Vector3(2, 0, -1.5)), 1, "Betrayal_Lock")
+		3: # Ghost Rail
+			_add_node(0, _q(Vector3(-3.5, 0, 0)), 1, "Platform_A")
+			_add_node(1, _q(Vector3(-1, 0, 2)), 0, "Nowhere_Track")
+			_add_node(2, _q(Vector3(1.5, 0, 2)), 1, "Yesterday_Car")
+			_add_node(3, _q(Vector3(3.5, 0, 0)), 1, "Departure_Gate")
+			_add_node(4, _q(Vector3(0, 0, -2.5)), 0, "Schedule_Glitch")
+		4: # Rollback District
+			_add_node(0, _q(Vector3(-3, 0, 0)), 1, "Loop_Start")
+			_add_node(1, _q(Vector3(0, 0, 2)), 1, "Timer_Node")
+			_add_node(2, _q(Vector3(3, 0, 0)), 0, "Pattern_Echo")
+			_add_node(3, _q(Vector3(0, 0, -2.5)), 1, "Break_Gate")
+			_add_node(4, _q(Vector3(-2, 0, -1)), 0, "Reset_Anchor")
+			_add_node(5, _q(Vector3(2, 0, -1)), 1, "Persistent_Var")
+		5: # Dead Repository
+			_add_node(0, _q(Vector3(-3.5, 0, 0)), 0, "Archive_Root")
+			_add_node(1, _q(Vector3(-1, 0, 2)), 0, "Failed_Timeline")
+			_add_node(2, _q(Vector3(1.5, 0, 2)), 1, "Warden_Seal")
+			_add_node(3, _q(Vector3(3.5, 0, 0)), 0, "Vault_Gate")
+			_add_node(4, _q(Vector3(0, 0, -2.8)), 0, "Erased_Self")
+			_add_node(5, _q(Vector3(-2, 0, -1.5)), 0, "Index_Ash")
+		6: # The Sink
+			_add_node(0, _q(Vector3(-3.5, 0, 0)), 0, "Collapse_Heart")
+			_add_node(1, _q(Vector3(-1, 0, 2)), 0, "Gravity_Fold")
+			_add_node(2, _q(Vector3(1.5, 0, 2.2)), 0, "Null_Rib")
+			_add_node(3, _q(Vector3(3.5, 0, 0)), 0, "Sink_Gate")
+			_add_node(4, _q(Vector3(0, 0, -2.8)), 1, "Last_Vesper")
+			_add_node(5, _q(Vector3(-2, 0, -1.5)), 0, "Deleted_Street")
+			_add_node(6, _q(Vector3(2, 0, -1.2)), 0, "Unraveled_Mind")
 
 func _q(v: Vector3) -> Vector3i:
 	return Vector3i(int(round(v.x * QUANT_SCALE)), int(round(v.y * QUANT_SCALE)), int(round(v.z * QUANT_SCALE)))
@@ -140,7 +174,7 @@ func commit_frame() -> bool:
 	if not _validate_budget():
 		return _reject("Budget exceeded")
 	if not _validate_partitions():
-		return _reject("Partition / identity integrity failed")
+		return _reject("Partition integrity failed")
 	if not _validate_graph_sanity():
 		return _reject("Graph sanity failed")
 	mutation_log.sort_custom(func(a, b):
@@ -173,8 +207,6 @@ func _validate_partitions() -> bool:
 	for rec in mutation_log:
 		var nid: int = rec.node
 		if nid < -1 or (nid >= 0 and nid >= nodes.size()):
-			return false
-		if rec.edge >= 0 and rec.edge >= nodes.size():
 			return false
 	return true
 
@@ -216,9 +248,8 @@ func _apply(rec: Dictionary) -> void:
 					chain.append(e)
 			sunder_count += 1
 			sunder_executed.emit(chain)
-			var target_id := 3
-			if _has_path(0, target_id):
-				nodes[target_id]["label"] = str(nodes[target_id].label) + "_OPEN"
+			if _has_path(0, 3):
+				nodes[3]["label"] = str(nodes[3].label) + "_OPEN"
 				gate_is_open = true
 				gate_opened.emit()
 				demo_won.emit()
@@ -276,8 +307,5 @@ func get_auditor_lock_threshold() -> int:
 	return 1
 
 func get_room_objective() -> String:
-	match current_room:
-		1: return "Room 1: Connect Lamp (0) to Vesper Gate (3)"
-		2: return "Room 2: Connect Necro Root (0) to Vesper Exit (3)"
-		3: return "Room 3: Connect Necro Heart (0) to Necro Gate (3) — heavy Layer 0"
-	return "Connect 0 to 3, then SUNDER"
+	var d = get_district()
+	return "%s: connect 0 → 3, then SUNDER — %s" % [d.name, d.blurb]
