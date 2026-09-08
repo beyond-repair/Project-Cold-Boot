@@ -34,6 +34,10 @@ ALERT      ████░░░░░░░░░░░░░░░░░░░
 
 ---
 
+**Governance:** [GOVERNANCE.md](GOVERNANCE.md) · Classification **RESEARCH** (foundation prototype; claims capped at vertical-slice level). See [ADL-Governance](https://github.com/beyond-repair/ADL-Governance).
+
+---
+
 ## ▌ MAIN OBJECTIVE
 
 **REACH THE CORE TOWER**
