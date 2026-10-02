@@ -1,28 +1,34 @@
-# Godot Project
+# Godot Project — Project Cold Boot
 
-Godot 4.x project root (to be initialized).
+Godot **4.2+** project root for the Claim-0 vertical slice.
 
-## Planned Structure
+## Structure
 
 ```
 godot/
-├── project.godot
+├── project.godot          # main_scene = MainMenu; autoload GameState
 ├── scenes/
-│   ├── vertical_slice/
-│   └── common/
+│   ├── main_menu/MainMenu.tscn
+│   └── vertical_slice/VerticalSlice.tscn
 ├── scripts/
-│   ├── systems/
-│   └── ui/
-├── resources/
-├── shaders/          # dual-layer, ink, bleed, causal energy
-└── addons/            # GDExtension bindings
+│   ├── systems/GameState.gd
+│   ├── main_menu/MainMenu.gd
+│   └── vertical_slice/VerticalSlice.gd
+├── shaders/               # domain-warp compositor + noise
+└── tools/smoke_test.gd    # headless SCAN→SNAP→SUNDER smoke
 ```
 
-## Dual-Layer Rendering Notes
+## Run
 
-- Layer 0 (Necropolis): ink-drenched, procedural noise, low-res gothic
-- Layer 1 (Vesper City): clean vectors, high-contrast neon
-- Bleed: stencil masks + ViewportTexture blending driven by Identity Drift / entropy
-- Causal energy: violet particle / line overlays for SNAP chains
+- Editor: open this folder as the project → **F5** (main menu → Enter the Manuscript).
+- CLI play: `godot --path .` (from this directory) or `godot --path godot` from repo root.
+- Headless smoke (from repo root): `./tools/smoke_test.sh`  
+  or `godot --headless --path godot -s res://tools/smoke_test.gd`
 
-Initialize with `godot --path . --editor` once project.godot is present.
+## Dual-layer notes
+
+- Layer 0 (Necropolis): ink / low-res gothic framing
+- Layer 1 (Vesper City): neon vectors
+- Bleed: compositor shader + ViewportTexture seam
+
+**Claim:** RUNNABLE SKETCH only — not commercial art/audio/Steam readiness.
