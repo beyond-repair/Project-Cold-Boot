@@ -1,7 +1,7 @@
 <div align="center">
 
 ```
-╔══════════════════════════════════════════════════════════════╗
+╔════════════════════════════════════════════════════════════╗
 ║                                                              ║
 ║   ██████╗  ██████╗ ██╗     ██████╗                           ║
 ║  ██╔════╝ ██╔═══██╗██║     ██╔══██╗                          ║
@@ -11,7 +11,7 @@
 ║   ╚═════╝  ╚═════╝ ╚══════╝╚═════╝                           ║
 ║                                                              ║
 ║              ＢＯＯＴ  ·  ＶＥＳＰＥＲ  ＣＩＴＹ                 ║
-╚══════════════════════════════════════════════════════════════╝
+╚════════════════════════════════════════════════════════════╝
 ```
 
 # PROJECT COLD BOOT
@@ -27,7 +27,7 @@
 
 ```
 STABILITY  ████████████░░░░░░░░░░░░  58%
-ALERT      ████░░░░░░░░░░░░░░░░░░░░  31%
+ALERT      ████░░░░░░░░░░░░░░░░░░  31%
 ```
 
 </div>
@@ -78,6 +78,9 @@ godot --path godot
 # equivalent:
 #   godot --headless --path godot -s res://tools/smoke_test.gd
 # Expect: "28 passed, 0 failed" and exit 0
+
+# Host structural check (no Godot; does not replace smoke)
+python -m unittest tests/test_structure.py -v
 
 # Optional: boot main scene for a few frames then quit
 godot --headless --path godot --quit-after 2

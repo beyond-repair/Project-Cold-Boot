@@ -3,7 +3,7 @@
 **Classification:** RESEARCH / **RUNNABLE SKETCH**  
 **Claim level:** **0 — Foundation prototype**  
 **Governing source:** [ADL-Governance](https://github.com/beyond-repair/ADL-Governance)  
-**Sweep lock:** Sweep-127 (2026-09-08)
+**Sweep lock:** Sweep-272 (2026-10-07). Prior lock Sweep-127 retained in history.
 
 ## Claim Level
 
@@ -19,7 +19,7 @@ Headless smoke (`tools/smoke_test.sh`) exercises GameState + resource load witho
 - Solo continuation or collaborator handoff of the foundation.
 - Reference for art direction, mechanics, and architecture docs.
 - Demonstration of the core fantasy loop in Godot 4.2+.
-- CI-less local smoke via Godot headless.
+- Host structural CI plus local Godot headless smoke.
 
 ## Forbidden Uses
 
@@ -29,8 +29,9 @@ Headless smoke (`tools/smoke_test.sh`) exercises GameState + resource load witho
 
 ## CI / Tests
 
-No GitHub Actions workflow in this repo (token/workflow scope not assumed).  
-Automated check: `./tools/smoke_test.sh` (Godot 4.2+ `--headless`).  
+Host structural check (no Godot, no gameplay claim): `python -m unittest tests/test_structure.py -v`.  
+GitHub Actions workflow `structure` runs that unittest on push and pull request to `main`.  
+Godot smoke remains separate: `./tools/smoke_test.sh` (Godot 4.2+ `--headless`). Not executed in the structural job.  
 Manual play: open `godot/` → F5.
 
 ## Target State
