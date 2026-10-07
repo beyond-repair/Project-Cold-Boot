@@ -1,8 +1,9 @@
-# Status — Foundation handoff
+# Status — Sweep-272
 
-**Repo**: https://github.com/beyond-repair/Project-Cold-Boot
+**Repo:** https://github.com/beyond-repair/Project-Cold-Boot
+**Class:** RESEARCH
+**Claim:** 0 — runnable Godot sketch. Not a commercial title. Not a DLRSE proof.
 
-Playable systems prototype + locked art/mechanics docs.  
-See `docs/HANDOFF.md` and `docs/NEXT_AI_AND_TOOLS.md`.
+Discover HEAD `dff983cc399d91266bddc680cf087bd162054948` had docs, scenes, GameState, and `tools/smoke_test.sh`, and no Actions workflow.
 
-Commercial 1.0 (final 3D, audio, Steam) needs a PC + optional other tools/artists.
+This cycle adds `tests/test_structure.py` and `.github/workflows/structure.yml`. Godot smoke was not run in the sweep environment (no Godot binary). Commercial 1.0 remains operator/content work. See `docs/DISCOVERY.md` and `GOVERNANCE.md`.
