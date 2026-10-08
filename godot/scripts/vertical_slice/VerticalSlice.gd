@@ -41,6 +41,20 @@ const SAVE_PATH := "user://coldboot_run.save"
 ## Spheres and beams sit this far above y=0 so the floor slab (top at y=0.1)
 ## does not bury the beams or cut the spheres in half.
 const NODE_LIFT := 0.45
+## Screen-space clearance a beam keeps from any sphere that is not one of its
+## two endpoints. A straight beam that would pass closer bends into a shallow
+## arc, so it never reads as a link to that sphere. Layouts are unchanged.
+const BEAM_CLEAR_PX := 12.0
+const BEAM_SEGMENTS := 12
+## Each beam: {"from", "to", "world": PackedVector3Array, "screen": PackedVector2Array}
+var beam_paths: Array = []
+## Dark backing behind the top-left HUD column (status .. district lines).
+var hud_backing: Panel
+## The Auditor and Sable capsules are atmosphere: translucent, parked in the
+## screen margins at this view depth, clear of the node area.
+const PILL_DEPTH := 7.0
+const AUDITOR_SCREEN := Vector2(0.945, 0.60)
+const SABLE_SCREEN := Vector2(0.055, 0.66)
 
 func vis_pos(id: int) -> Vector3:
 	return GameState.get_node_pos(id) + Vector3(0, NODE_LIFT, 0)
@@ -68,6 +82,9 @@ func _ready() -> void:
 	_apply_atmosphere()
 	_setup_compositor()
 	_setup_tag_layer()
+	_setup_hud_backing()
+	_style_pause_panel()
+	_place_pills()
 	_rebuild_visuals()
 	_update_all()
 	_set_history()
@@ -78,6 +95,7 @@ func _process(delta: float) -> void:
 	if cam_main and cam_l0 and cam_l1:
 		cam_l0.global_transform = cam_main.global_transform
 		cam_l1.global_transform = cam_main.global_transform
+	_fit_hud_backing()
 	if paused or demo_complete:
 		return
 	if GameState.is_rollback_district() and GameState.scanned and not GameState.gate_is_open:
@@ -127,25 +145,37 @@ func _apply_atmosphere() -> void:
 	floor_mat.metallic = 0.75
 	floor_mat.roughness = 0.22
 	floor_mesh.material_override = floor_mat
+	# Auditor / Sable capsules: translucent atmosphere, not opaque blobs. They
+	# draw before everything else that is transparent and sit in the margins
+	# (_place_pills), so they never cover a sphere, tag or beam.
 	for pair in [[auditor_mesh, Color(0.35, 0.05, 0.55)], [sable_mesh, Color(0.6, 0.2, 0.95)]]:
 		var mat := StandardMaterial3D.new()
-		mat.albedo_color = Color(0.07, 0.05, 0.1)
-		mat.emission_enabled = true
-		mat.emission = pair[1]
-		mat.emission_energy_multiplier = 2.0
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.albedo_color = Color(pair[1].r, pair[1].g, pair[1].b, 0.26)
+		mat.render_priority = -2
 		pair[0].material_override = mat
+		pair[0].cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	# Translucent violet: at full emission the seam was an opaque white wall that
 	# hid the centre node and cut through the win panel.
 	var seam_mat := StandardMaterial3D.new()
 	seam_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	seam_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	seam_mat.albedo_color = Color(0.85, 0.35, 1.0, 0.3)
+	# The seam's near end sits between the camera and the board, so on top of
+	# the spheres it washed out the centre node. Beams (priority 0) and
+	# spheres (priority 1) now draw after it and read through it.
+	seam_mat.render_priority = -1
 	bleed_seam.material_override = seam_mat
+	bleed_seam.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("pause_menu"):
 		paused = not paused
 		pause_panel.visible = paused
+		# Tags sit on their own layer; hide them so nothing shows over PAUSED.
+		if tag_layer:
+			tag_layer.visible = not paused
 		get_tree().paused = paused
 		return
 	if event is InputEventKey and event.pressed:
@@ -153,6 +183,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_H:
 				show_history = not show_history
 				history_label.visible = show_history
+				_update_ui("History shown." if show_history else "History hidden (H shows it).")
 				return
 			KEY_1:
 				GameState.set_kernel(GameState.Kernel.FINAL_COMMIT)
@@ -205,7 +236,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		_try_select_node(event.position)
 
 func _save_run() -> void:
-	var data := {"current_room": GameState.current_room, "current_kernel": GameState.current_kernel, "rooms_completed": GameState.rooms_completed, "scanned": GameState.scanned, "gate_is_open": GameState.gate_is_open, "edges": GameState.edges.duplicate(true), "history": GameState.history.duplicate(true), "nodes_locked": [], "last_path": GameState.last_path_nodes.duplicate()}
+	var data := {"current_room": GameState.current_room, "current_kernel": GameState.current_kernel, "rooms_completed": GameState.rooms_completed, "scanned": GameState.scanned, "gate_is_open": GameState.gate_is_open, "edges": GameState.edges.duplicate(true), "history": GameState.history.duplicate(true), "nodes_locked": [], "last_path": GameState.last_path_nodes.duplicate(), "frame_id": GameState.frame_id, "room_step": GameState.room_step, "null_walker_fired": GameState.null_walker_fired}
 	for n in GameState.nodes:
 		if n.locked: data.nodes_locked.append(n.id)
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
@@ -216,6 +247,7 @@ func _save_run() -> void:
 
 func _load_run() -> void:
 	if not FileAccess.file_exists(SAVE_PATH):
+		_update_ui("No save yet. F5 saves the run.")
 		return
 	var file := FileAccess.open(SAVE_PATH, FileAccess.READ)
 	var data = JSON.parse_string(file.get_as_text())
@@ -237,8 +269,17 @@ func _load_run() -> void:
 	var hist: Array[Dictionary] = []
 	for r in data.get("history", []):
 		if typeof(r) == TYPE_DICTIONARY:
-			hist.append({"frame": int(r.get("frame", 0)), "seq": int(r.get("seq", 0)), "priority": int(r.get("priority", 0)), "op": str(r.get("op", "")), "node": int(r.get("node", -1)), "edge": int(r.get("edge", -1)), "payload": []})
+			hist.append({"frame": int(r.get("frame", 0)), "step": int(r.get("step", hist.size() + 1)), "seq": int(r.get("seq", 0)), "priority": int(r.get("priority", 0)), "op": str(r.get("op", "")), "node": int(r.get("node", -1)), "edge": int(r.get("edge", -1)), "payload": []})
 	GameState.history = hist
+	# frame_id and the per-district step are part of the run. Without them the
+	# log hash read "--------" after a load and the History steps restarted
+	# at 0 under the loaded ones.
+	var max_step := 0
+	for r in hist:
+		max_step = maxi(max_step, int(r.step))
+	GameState.room_step = maxi(int(data.get("room_step", max_step)), max_step)
+	GameState.frame_id = maxi(int(data.get("frame_id", GameState.room_step)), GameState.room_step)
+	GameState.null_walker_fired = bool(data.get("null_walker_fired", false))
 	GameState.snap_count = edges.size()
 	GameState.last_path_nodes = []
 	for id in data.get("last_path", []):
@@ -250,6 +291,7 @@ func _load_run() -> void:
 		n.locked = n.id in locked
 		n.revealed = GameState.scanned
 	GameState.auditor_active = not locked.is_empty()
+	GameState.refresh_hash()
 	if GameState.gate_is_open and GameState.nodes.size() > 3 and not str(GameState.nodes[3].label).ends_with("_OPEN"):
 		GameState.nodes[3]["label"] = str(GameState.nodes[3].label) + "_OPEN"
 	selected_node = -1
@@ -261,10 +303,17 @@ func _load_run() -> void:
 	GameState.graph_changed.emit()
 	_update_all()
 	_set_history()
-	_update_ui("Loaded.")
+	if GameState.gate_is_open:
+		_update_ui("Loaded. Gate open: N for the next district.")
+	elif GameState.scanned:
+		_update_ui("Loaded. Click two nodes to SNAP.")
+	else:
+		_update_ui("Loaded. Press E to SCAN.")
 
 func _do_scan() -> void:
 	if GameState.scanned:
+		# Say something, so an old status ("Loaded.", "Saved.") does not linger.
+		_update_ui("Already scanned. Click two nodes to SNAP.")
 		return
 	GameState.begin_frame()
 	GameState.log_mutation("SCAN", 0, -1, [], 0)
@@ -328,7 +377,7 @@ func _do_snap(a: int, b: int) -> void:
 		if GameState.auditor_active and not auditor_before and lock_target >= 0:
 			parts.append(_lock_text(lock_target))
 		if GameState.null_walker_fired and not walker_before:
-			parts.append("NULL WALKER removed an edge.")
+			parts.append(_walker_text())
 		_update_ui(" | ".join(parts))
 		_update_objective()
 
@@ -341,6 +390,20 @@ func _do_sunder() -> void:
 	GameState.log_mutation("SUNDER", 0, -1, [], 0)
 	if GameState.commit_frame():
 		_update_objective()
+
+## Which link the Null Walker took, and whether it can simply be redrawn.
+## Its endpoints may already be Auditor-locked (the lock lands in the same
+## commit), in which case the player has to route around that node.
+func _walker_text() -> String:
+	var l: Vector2i = GameState.null_walker_link
+	if l.x < 0:
+		return "NULL WALKER removed a link."
+	var t := "NULL WALKER removed link %d – %d." % [l.x, l.y]
+	for id in [l.x, l.y]:
+		if id >= 0 and id < GameState.nodes.size() and GameState.nodes[id].locked:
+			t += " Node %d is locked: route around it." % id
+			break
+	return t
 
 ## What a lock does (GameState): SNAPs touching a locked node are refused,
 ## but edges it already has stay and still count for the 0 → 3 path.
@@ -378,6 +441,7 @@ func _on_win() -> void:
 
 func _on_room_changed(_id: int) -> void:
 	_update_all()
+	_set_history()
 	bleed_seam.visible = false
 
 func _on_committed(_f: int, _h: int) -> void:
@@ -397,7 +461,9 @@ func _update_hash_ui() -> void:
 			parts.append("ROLLBACK %ds" % GameState.rollback_left)
 		else:
 			parts.append("ROLLBACK %ds (starts at SCAN)" % GameState.rollback_left)
-	parts.append("Log hash %s" % (short_hash(GameState.last_hash) if GameState.frame_id > 0 else "--------"))
+	# Dashes until this district has a commit (a fresh district must not show
+	# the previous district's hash); F9 restores room_step and the hash.
+	parts.append("Log hash %s" % (short_hash(GameState.last_hash) if GameState.room_step > 0 else "--------"))
 	parts.append("Edges %d" % GameState.edges.size())
 	hash_label.text = " | ".join(parts)
 
@@ -433,6 +499,8 @@ func _rebuild_visuals() -> void:
 		c.queue_free()
 	for c in edge_container.get_children():
 		c.queue_free()
+	_place_pills()
+	_compute_beam_paths()
 	_rebuild_tags()
 	for n in GameState.nodes:
 		var mi := MeshInstance3D.new()
@@ -454,6 +522,10 @@ func _rebuild_visuals() -> void:
 			mat.emission_enabled = true
 			mat.emission = Color(1.0, 0.85, 0.3)
 			mat.emission_energy_multiplier = 4.0
+		# Drawn in the transparent pass after the seam (priority -1) and the
+		# beams (0), fully opaque, so neither the seam nor a beam covers it.
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS
+		mat.render_priority = 1
 		mi.material_override = mat
 		mi.position = vis_pos(n.id)
 		node_container.add_child(mi)
@@ -465,28 +537,204 @@ func _rebuild_visuals() -> void:
 		body.add_child(col)
 		body.set_meta("node_id", n.id)
 		mi.add_child(body)
+	var beam_mat := StandardMaterial3D.new()
+	beam_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	beam_mat.emission_enabled = true
+	beam_mat.emission = Color(0.85, 0.35, 1.0)
+	beam_mat.emission_energy_multiplier = 6.0
+	# Over the seam, under the spheres.
+	beam_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS
+	beam_mat.render_priority = 0
+	for bp in beam_paths:
+		var pts: PackedVector3Array = bp.world
+		for i in range(pts.size() - 1):
+			_add_beam_segment(pts[i], pts[i + 1], beam_mat, i > 0 and i < pts.size() - 2)
+
+func _add_beam_segment(a: Vector3, b: Vector3, mat: Material, overlap: bool) -> void:
+	var mi := MeshInstance3D.new()
+	var cyl := CylinderMesh.new()
+	cyl.top_radius = 0.07
+	cyl.bottom_radius = 0.07
+	# Inner pieces of an arc overlap a little so the joints have no gaps.
+	cyl.height = a.distance_to(b) + (0.04 if overlap else 0.0)
+	cyl.radial_segments = 12
+	mi.mesh = cyl
+	mi.material_override = mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# look_at needs the node in the tree; before add_child it errors and the
+	# beam stays a vertical post instead of spanning the two spheres.
+	edge_container.add_child(mi)
+	mi.position = (a + b) / 2.0
+	if a.distance_to(b) > 0.001:
+		mi.look_at(mi.global_position + (b - a), Vector3.UP if absf((b - a).normalized().y) < 0.99 else Vector3.FORWARD)
+		mi.rotate_object_local(Vector3.RIGHT, PI / 2.0)
+
+## Screen circle (x, y, radius) for every sphere.
+func _sphere_circles() -> Dictionary:
+	var out := {}
+	if cam_main == null or not is_inside_tree():
+		return out
+	var right := cam_main.global_transform.basis.x
+	for n in GameState.nodes:
+		var c2 := cam_main.unproject_position(vis_pos(n.id))
+		var edge2 := cam_main.unproject_position(vis_pos(n.id) + right * 0.38)
+		out[n.id] = Vector3(c2.x, c2.y, c2.distance_to(edge2))
+	return out
+
+static func _seg_point_dist(p: Vector2, a: Vector2, b: Vector2) -> float:
+	var ab := b - a
+	var l2 := ab.length_squared()
+	if l2 < 0.0001:
+		return p.distance_to(a)
+	var t := clampf((p - a).dot(ab) / l2, 0.0, 1.0)
+	return p.distance_to(a + ab * t)
+
+static func polyline_point_dist(poly: PackedVector2Array, p: Vector2) -> float:
+	var best := INF
+	for i in range(poly.size() - 1):
+		best = minf(best, _seg_point_dist(p, poly[i], poly[i + 1]))
+	return best
+
+func _project_points(pts: PackedVector3Array) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	for p in pts:
+		out.append(cam_main.unproject_position(p))
+	return out
+
+## How far the closest non-endpoint sphere intrudes into the beam's clearance.
+func _beam_intrusion(poly: PackedVector2Array, a_id: int, b_id: int, circles: Dictionary) -> float:
+	var worst := 0.0
+	for id in circles:
+		if id == a_id or id == b_id:
+			continue
+		var c: Vector3 = circles[id]
+		worst = maxf(worst, c.z + BEAM_CLEAR_PX - polyline_point_dist(poly, Vector2(c.x, c.y)))
+	return worst
+
+## Straight beam when it is clear of every other sphere on screen; otherwise
+## the shallowest flat arc (in the board plane) that clears them all.
+func _compute_beam_paths() -> void:
+	beam_paths.clear()
+	var circles := _sphere_circles()
+	if circles.is_empty():
+		return
 	for e in GameState.edges:
-		var a: Vector3 = vis_pos(e.from)
-		var b: Vector3 = vis_pos(e.to)
-		var mi := MeshInstance3D.new()
-		var cyl := CylinderMesh.new()
-		cyl.top_radius = 0.07
-		cyl.bottom_radius = 0.07
-		cyl.height = a.distance_to(b)
-		mi.mesh = cyl
-		var mat := StandardMaterial3D.new()
-		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		mat.emission_enabled = true
-		mat.emission = Color(0.85, 0.35, 1.0)
-		mat.emission_energy_multiplier = 6.0
-		mi.material_override = mat
-		# look_at needs the node in the tree; before add_child it errors and the
-		# beam stays a vertical post instead of spanning the two spheres.
-		edge_container.add_child(mi)
-		mi.position = (a + b) / 2.0
-		if a.distance_to(b) > 0.001:
-			mi.look_at(mi.global_position + (b - a), Vector3.UP if absf((b - a).normalized().y) < 0.99 else Vector3.FORWARD)
-			mi.rotate_object_local(Vector3.RIGHT, PI / 2.0)
+		var a := vis_pos(e.from)
+		var b := vis_pos(e.to)
+		var pts := PackedVector3Array([a, b])
+		var poly := _project_points(pts)
+		if _beam_intrusion(poly, e.from, e.to, circles) > 0.0:
+			var d := b - a
+			var perp := Vector3(-d.z, 0.0, d.x).normalized()
+			var mid := (a + b) * 0.5
+			var found := false
+			for k in range(1, 16):
+				for sgn in [1.0, -1.0]:
+					var ctrl: Vector3 = mid + perp * sgn * (0.16 * k) * 2.0
+					var cand := PackedVector3Array()
+					for i in BEAM_SEGMENTS + 1:
+						var t := float(i) / BEAM_SEGMENTS
+						cand.append(a.lerp(ctrl, t).lerp(ctrl.lerp(b, t), t))
+					var cpoly := _project_points(cand)
+					if _beam_intrusion(cpoly, e.from, e.to, circles) <= 0.0:
+						pts = cand
+						poly = cpoly
+						found = true
+						break
+				if found:
+					break
+		beam_paths.append({"from": int(e.from), "to": int(e.to), "world": pts, "screen": poly})
+
+## Screen rects of the Auditor / Sable capsules (all of them, visible or not).
+func pill_screen_rects() -> Array[Rect2]:
+	var out: Array[Rect2] = []
+	if cam_main == null or not is_inside_tree():
+		return out
+	for m in [auditor_mesh, sable_mesh]:
+		out.append(_pill_rect(m))
+	return out
+
+func _pill_rect(m: MeshInstance3D) -> Rect2:
+	# From the capsule's own size (the headless dummy renderer reports no
+	# mesh AABB), so the driver checks the same rect in both modes.
+	var cap := m.mesh as CapsuleMesh
+	var aabb: AABB = AABB(Vector3(-cap.radius, -cap.height * 0.5, -cap.radius), Vector3(cap.radius * 2.0, cap.height, cap.radius * 2.0)) if cap else m.mesh.get_aabb()
+	var r := Rect2()
+	for i in 8:
+		var p := cam_main.unproject_position(m.global_transform * aabb.get_endpoint(i))
+		r = Rect2(p, Vector2.ZERO) if i == 0 else r.expand(p)
+	return r
+
+## Park the capsules in the side margins: at their usual screen spot, pushed
+## further out if that would reach the spheres of this district (narrow
+## windows push them partly off screen rather than onto the board).
+func _place_pills() -> void:
+	if cam_main == null or not is_inside_tree():
+		return
+	var vp := get_viewport().get_visible_rect().size
+	var lo := INF
+	var hi := -INF
+	for c in _sphere_circles().values():
+		lo = minf(lo, c.x - c.z)
+		hi = maxf(hi, c.x + c.z)
+	for spec in [[auditor_mesh, AUDITOR_SCREEN, 1.0], [sable_mesh, SABLE_SCREEN, -1.0]]:
+		var m: MeshInstance3D = spec[0]
+		var t: Vector2 = vp * spec[1]
+		m.global_position = cam_main.project_position(t, PILL_DEPTH)
+		if lo < hi:
+			var r := _pill_rect(m)
+			var push := 0.0
+			if spec[2] > 0.0 and r.position.x < hi + 16.0:
+				push = hi + 16.0 - r.position.x
+			elif spec[2] < 0.0 and r.end.x > lo - 16.0:
+				push = -(r.end.x - (lo - 16.0))
+			if push != 0.0:
+				m.global_position = cam_main.project_position(t + Vector2(push * 1.15, 0.0), PILL_DEPTH)
+
+func _setup_hud_backing() -> void:
+	hud_backing = Panel.new()
+	hud_backing.name = "HudBacking"
+	hud_backing.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Same look as the History panel.
+	var sb := history_label.get_theme_stylebox("normal").duplicate() as StyleBoxFlat
+	if sb == null:
+		sb = StyleBoxFlat.new()
+		sb.bg_color = Color(0.035, 0.012, 0.06, 0.78)
+	sb.bg_color.a = 0.86
+	hud_backing.add_theme_stylebox_override("panel", sb)
+	var ui := status_label.get_parent()
+	ui.add_child(hud_backing)
+	ui.move_child(hud_backing, status_label.get_index())
+	_fit_hud_backing()
+
+func hud_labels() -> Array:
+	return [status_label, objective_label, hash_label, kernel_label, room_label]
+
+## Sized to the text of the five top-left lines, every frame (cheap).
+func _fit_hud_backing() -> void:
+	if hud_backing == null:
+		return
+	var r := Rect2()
+	var first := true
+	for l in hud_labels():
+		if not l.visible or l.text.is_empty():
+			continue
+		var lr := Rect2(l.position, l.get_minimum_size())
+		r = lr if first else r.merge(lr)
+		first = false
+	hud_backing.visible = not first
+	hud_backing.position = (r.position - Vector2(8, 5)).round()
+	hud_backing.size = (r.size + Vector2(20, 10)).round()
+
+func _style_pause_panel() -> void:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.035, 0.012, 0.06, 0.96)
+	sb.border_color = Color(0.62, 0.32, 0.9)
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(4)
+	sb.content_margin_left = 16
+	sb.content_margin_right = 16
+	pause_panel.add_theme_stylebox_override("panel", sb)
 
 func _setup_tag_layer() -> void:
 	tag_layer = Control.new()
@@ -497,7 +745,7 @@ func _setup_tag_layer() -> void:
 	ui.add_child(tag_layer)
 	# Above the composited 3D image, below the HUD text and panels.
 	ui.move_child(tag_layer, compositor_rect.get_index() + 1)
-	get_viewport().size_changed.connect(func(): _layout_tags.call_deferred())
+	get_viewport().size_changed.connect(func(): _place_pills(); _rebuild_visuals.call_deferred())
 
 func _tag_text(n: Dictionary, with_lock: bool) -> String:
 	var role := ""
@@ -532,7 +780,7 @@ func _rebuild_tags() -> void:
 			fg = Color(1.0, 0.88, 0.45)
 		lbl.add_theme_color_override("font_color", fg)
 		var sb := StyleBoxFlat.new()
-		sb.bg_color = Color(0.04, 0.015, 0.07, 0.82)
+		sb.bg_color = Color(0.04, 0.015, 0.07, 0.88)
 		sb.border_color = accent
 		sb.set_border_width_all(1)
 		sb.border_width_left = 3
@@ -558,6 +806,20 @@ static func _rect_circle_overlap(r: Rect2, c: Vector2, rad: float) -> float:
 	var d := Vector2(px, py).distance_to(c)
 	return maxf(0.0, rad - d)
 
+## Approximate length (px) of a screen polyline inside a rect.
+static func rect_polyline_len(r: Rect2, poly: PackedVector2Array) -> float:
+	var total := 0.0
+	for i in range(poly.size() - 1):
+		var a := poly[i]
+		var b := poly[i + 1]
+		var steps := maxi(1, int(a.distance_to(b) / 3.0))
+		var inside := 0
+		for k in steps + 1:
+			if r.has_point(a.lerp(b, float(k) / steps)):
+				inside += 1
+		total += a.distance_to(b) * float(inside) / float(steps + 1)
+	return total
+
 static func _rect_overlap_area(a: Rect2, b: Rect2) -> float:
 	var i := a.intersection(b)
 	return i.get_area() if a.intersects(b) else 0.0
@@ -572,22 +834,18 @@ func _layout_tags() -> void:
 		return
 	var vp := get_viewport().get_visible_rect().size
 	var screen := Rect2(Vector2(4, 4), vp - Vector2(8, 8))
-	var right := cam_main.global_transform.basis.x
 	var labels: Array = []
 	for c in tag_layer.get_children():
 		if c.has_meta("node_id"):
 			labels.append(c)
-	for lbl in labels:
-		var id: int = lbl.get_meta("node_id")
-		var c2 := cam_main.unproject_position(vis_pos(id))
-		var edge2 := cam_main.unproject_position(vis_pos(id) + right * 0.38)
-		tag_circles[id] = Vector3(c2.x, c2.y, c2.distance_to(edge2))
+	tag_circles = _sphere_circles()
 	var obstacles: Array[Rect2] = [
 		Rect2(0, 0, vp.x, 178),                       # status / objective / hash / kernel / district lines
 		Rect2(0, 178, 240, 196),                      # History column (8 lines)
 		Rect2(0, vp.y - 50, vp.x, 50),                # footer hint bar
 		Rect2(vp.x * 0.5 - 245, vp.y - 195, 490, 150),  # win panel
 	]
+	obstacles.append_array(pill_screen_rects())     # Auditor / Sable capsules
 	var chosen: Dictionary = {}
 	for pass_i in 4:
 		for lbl in labels:
@@ -624,6 +882,9 @@ func _layout_tags() -> void:
 						cost += 300.0
 				for ob in obstacles:
 					cost += _rect_overlap_area(rc, ob) * 8.0
+				# Keep tags off the beams (a LOCKED tag sat on the 0-1 link).
+				for bp in beam_paths:
+					cost += rect_polyline_len(rc.grow(2.0), bp.screen) * 30.0
 				cost += (rc.get_area() - _rect_overlap_area(rc, screen)) * 50.0
 				if cost < best_cost:
 					best_cost = cost

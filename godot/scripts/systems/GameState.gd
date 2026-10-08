@@ -50,6 +50,11 @@ var last_path_nodes: Array = []
 var last_sable_line: String = ""
 var rollback_left: int = ROLLBACK_SECONDS
 var null_walker_fired: bool = false
+## The link the Null Walker stripped this district (x=from, y=to), or (-1, -1).
+var null_walker_link: Vector2i = Vector2i(-1, -1)
+## Commits in the current district. History records carry it as "step" so the
+## History panel reads in order per district. frame_id stays global (hash).
+var room_step: int = 0
 
 func _ready() -> void:
 	reset_demo()
@@ -103,12 +108,19 @@ func reset_demo() -> void:
 	last_sable_line = ""
 	rollback_left = ROLLBACK_SECONDS
 	null_walker_fired = false
+	null_walker_link = Vector2i(-1, -1)
+	room_step = 0
 	_load_room(1)
 	graph_changed.emit()
 
 func go_to_room(room_id: int) -> void:
 	current_room = clamp(room_id, 1, DISTRICTS.size())
 	mutation_log.clear()
+	# History is per district: carrying the last district's records made the
+	# panel read out of order next to the new district's steps.
+	history.clear()
+	room_step = 0
+	null_walker_link = Vector2i(-1, -1)
 	edges.clear()
 	scanned = false
 	sunder_count = 0
@@ -205,7 +217,7 @@ func begin_frame() -> void:
 	last_reject_reason = ""
 
 func log_mutation(op_type: String, node_id: int, edge_id: int = -1, payload: Array = [], priority: int = 0) -> void:
-	mutation_log.append({"frame": frame_id, "seq": mutation_log.size(), "priority": priority, "op": op_type, "node": node_id, "edge": edge_id, "payload": payload})
+	mutation_log.append({"frame": frame_id, "step": room_step + 1, "seq": mutation_log.size(), "priority": priority, "op": op_type, "node": node_id, "edge": edge_id, "payload": payload})
 
 func commit_frame() -> bool:
 	if mutation_log.size() > MAX_MUTATIONS_PER_FRAME:
@@ -232,6 +244,7 @@ func commit_frame() -> bool:
 		if history.size() > MAX_HISTORY:
 			history.pop_front()
 	frame_id += 1
+	room_step += 1
 	last_hash = _compute_hash()
 	frame_committed.emit(frame_id, last_hash)
 	mutation_log.clear()
@@ -293,7 +306,8 @@ func _maybe_null_walker() -> void:
 			e = edges[idx]
 	edges.remove_at(idx)
 	null_walker_fired = true
-	null_walker_stirred.emit("NULL WALKER — an edge between timelines was removed.")
+	null_walker_link = Vector2i(int(e.from), int(e.to))
+	null_walker_stirred.emit("NULL WALKER removed link %d – %d." % [null_walker_link.x, null_walker_link.y])
 	graph_changed.emit()
 
 func _apply(rec: Dictionary) -> void:
@@ -379,8 +393,12 @@ func get_history_summary() -> String:
 	var start = max(0, history.size() - 8)
 	for i in range(start, history.size()):
 		var r = history[i]
-		lines.append("%d:%s n=%d e=%d" % [r.frame, r.op, r.node, r.edge])
+		lines.append("%d:%s n=%d e=%d" % [int(r.get("step", i + 1)), r.op, r.node, r.edge])
 	return "\n".join(lines)
+
+## Recompute the log hash from the current state (after F9 restores it).
+func refresh_hash() -> void:
+	last_hash = _compute_hash()
 
 func get_auditor_lock_threshold() -> int:
 	var base := 1
