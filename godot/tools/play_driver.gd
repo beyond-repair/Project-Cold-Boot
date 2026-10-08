@@ -557,6 +557,8 @@ func _run() -> void:
 	await key(KEY_SPACE)
 	ok(gs.gate_is_open, "room 1: 0→1→3 + SUNDER opens gate (status '%s', locked=%s)" % [status(), str(gs.nodes.map(func(n): return n.locked))])
 	await shot("02_room1_win")
+	var wsb := vs.win_panel.get_theme_stylebox("panel") as StyleBoxFlat
+	ok(vs.win_panel.visible and wsb != null and wsb.bg_color.a >= 0.9, "room 1: win panel sits on an opaque backing")
 	await key(KEY_N)
 	ok(gs.current_room == 2 and not vs.win_panel.visible, "N advances to room 2")
 	check_hud("room 2 entry")

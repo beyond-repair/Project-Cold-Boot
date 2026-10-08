@@ -3,7 +3,7 @@
 **Date:** 2026-10-08 (America/New_York)
 **Branch:** `fix/coldboot-playtest-pass`
 **Scope:** the existing Claim-0 vertical slice (main menu, six districts, SCAN → SNAP → SUNDER, kernels, Auditor lock, Rollback timer, Null Walker, F5/F9 save). No new mechanics.
-**Status:** IN PROGRESS. Every district clears with real input events on the real scenes. Three human mouse-and-keyboard sessions (2026-10-08) found HUD, save/load, readability and kernel-message bugs (H1–H7, P1–P11, Q1–Q7), all fixed or explained below. Q8 (H, F5 and F9 under the PAUSED panel) followed from the driver. The driver now passes 346/346 headless, on Forward+ (Vulkan, software) and on GL compatibility. Hand check 4 (03:45 ET) confirmed the kernel messages and pause gating on screen; its R1–R3 readability findings are fixed and checked by the driver and by screenshots on both renderers. Still open: a hand look at the R1–R3 fixes with real mouse and keyboard input.
+**Status:** IN PROGRESS. Every district clears with real input events on the real scenes. Three human mouse-and-keyboard sessions (2026-10-08) found HUD, save/load, readability and kernel-message bugs (H1–H7, P1–P11, Q1–Q7), all fixed or explained below. Q8 (H, F5 and F9 under the PAUSED panel) followed from the driver. The driver now passes 347/347 headless, on Forward+ (Vulkan, software) and on GL compatibility. Hand check 4 (03:45 ET) confirmed the kernel messages and pause gating on screen; its R1–R3 readability findings are fixed and checked by the driver and by screenshots on both renderers. Hand check 5 (~04:12 ET) played district 1 with real mouse and keyboard on the fixed build and confirmed R1–R3 on screen; its one new finding (W1, seam showing through the win panel) is fixed.
 
 ## How this was run
 
@@ -206,9 +206,21 @@ Also seen, by design or minor: node tags hide while paused (P11); F5 replaces th
 | R2 | After SCAN every sphere was the same solid white, linked or not. | Sphere emission was 3.5× on an LDR target, so violet and cyan both clipped to white. Beams at 6× clipped too. | Necropolis nodes glow violet and Vesper nodes cyan at 0.55×; linked nodes glow at 1.1×, as do locked (red), open gate (green) and selected (amber). Beams are 1.4× violet. Driver: no sphere's emission passes white, the two layers glow different colours, and a linked sphere glows brighter than an unlinked one. |
 | R3 | A translucent magenta column ran through the centre of each district, over nodes 4 and 1 and near their tags. | The `BleedSeam` was a 7-unit-tall, 14-deep sheet at x = 0, with its near end close to the camera. | The seam is now a thin fault line on the floor across the front of the board (9 × 0.02 × 0.08 at z = 3.9), in front of every node and inside the Auditor / Sable margins. It still appears on SCAN. Driver: the seam is flat and in front of every node in district 1. Screenshots of all six districts on Vulkan show it below every sphere and tag. |
 
+## Hand check 5 (2026-10-08, ~04:12 ET)
+
+Real mouse and keyboard on the GL compatibility build at 1280×720, fresh save directory. Menu, ENTER THE MANUSCRIPT, district 1: E, click 0 then 1, click 1 then 3, SPACE.
+
+| Check | Result |
+|-------|--------|
+| R1 HUD at entry and after SUNDER | PASS. The six HUD lines and History sit on a dark backing with no violet streak through any text. |
+| R2 sphere colours | PASS. Vesper nodes glow cyan and Necropolis nodes violet; linked 0 and 1 are brighter than 2 and 4; node 1 turns red with a `LOCKED` tag; the gate turns green on SUNDER. Beams are violet, not white. |
+| R3 seam | PASS. No column through the board; a thin violet line lies across the front of the board below every sphere and tag. |
+| Clear | PASS. `SUNDER: gate open.`, `Objective complete.`, Cleared 1, History 1–4 in order, win panel with the Sable line. |
+| W1 (new) | The win panel used the default translucent grey, and the front seam line showed between its text lines. Fixed: the win panel uses the opaque PAUSED backing. Driver asserts it; GL screenshots of the district 1 and 6 win panels show it clean. |
+
 ## Still open
 
-1. **Hand look at R1–R3.** The fixes above are checked by the driver and screenshots, not yet by a person with real mouse and keyboard input.
+1. **Full hand regression on the final build.** Hand check 5 covered district 1 only. A last real-input pass through all six districts (F5/F9, R, Esc, H, kernels, Null Walker) on this build is still needed before `COMPLETE — PLAYTEST VERIFIED`.
 2. **Puzzle depth (design call, not changed).** Any two nodes can be SNAPped, and the Auditor never locks 0 or 3, so a direct 0→3 SNAP clears every district. Constraining SNAPs would be new design.
 3. **R resets the whole run** to district 1 (by design in `reset_demo`). There is no "restart this district".
 4. **Auditor always locks node 1 on the 1 → 3 SNAP** (by design: it is the highest-scoring target there). With the Null Walker in 5 and 6, that forces the reroute via node 5. P3 now says so on screen. Q3 explains when it lands on a later SNAP.

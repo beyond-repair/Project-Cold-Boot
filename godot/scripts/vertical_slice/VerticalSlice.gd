@@ -804,6 +804,10 @@ func _style_pause_panel() -> void:
 	sb.content_margin_left = 16
 	sb.content_margin_right = 16
 	pause_panel.add_theme_stylebox_override("panel", sb)
+	# The win panel used the default translucent grey, so the floor seam and
+	# compositor streaks showed between its lines (hand check 5). Same opaque
+	# backing as PAUSED.
+	win_panel.add_theme_stylebox_override("panel", sb.duplicate())
 
 func _setup_tag_layer() -> void:
 	tag_layer = Control.new()
