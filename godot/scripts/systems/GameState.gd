@@ -334,9 +334,9 @@ func _apply(rec: Dictionary) -> void:
 				nodes[3]["label"] = str(nodes[3].label) + "_OPEN"
 				gate_is_open = true
 				last_sable_line = get_sable_line()
+				rooms_completed += 1
 				gate_opened.emit()
 				demo_won.emit()
-				rooms_completed += 1
 		"AUD_LOCK":
 			var nid: int = rec.node
 			if nid >= 0 and nid < nodes.size():

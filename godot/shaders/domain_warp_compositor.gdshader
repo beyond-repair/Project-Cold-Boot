@@ -66,11 +66,11 @@ void fragment() {
 	           - smoothstep(bleed_intensity, bleed_intensity + seam_width, n);
 	// Sharpen and boost
 	edge = pow(edge, 0.7);
-	base += edge * violet_seam * seam_emission;
-
-	// Subtle secondary micro-arcs
+	// Blend toward violet instead of adding 4.5x on top: on an LDR target the
+	// additive seam clipped to white contours across the whole screen.
 	float micro = value_noise(noise_uv * 3.5 + TIME * 0.3);
-	base += edge * micro * violet_seam * 1.2;
+	float seam_a = clamp(edge * (0.55 + 0.1 * seam_emission) * (0.8 + 0.4 * micro), 0.0, 1.0);
+	base = mix(base, violet_seam, seam_a);
 
 	COLOR = vec4(base, 1.0);
 }

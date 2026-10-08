@@ -30,8 +30,17 @@ var show_history: bool = true
 var compositor_mat: ShaderMaterial
 var rollback_accum: float = 0.0
 const SAVE_PATH := "user://coldboot_run.save"
+## Spheres and beams sit this far above y=0 so the floor slab (top at y=0.1)
+## does not bury the beams or cut the spheres in half.
+const NODE_LIFT := 0.45
+
+func vis_pos(id: int) -> Vector3:
+	return GameState.get_node_pos(id) + Vector3(0, NODE_LIFT, 0)
 
 func _ready() -> void:
+	# Esc pauses the tree; this node must keep receiving input so Esc can unpause.
+	# Gameplay is gated by `paused` in _process and _unhandled_input instead.
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	GameState.graph_changed.connect(_rebuild_visuals)
 	GameState.scan_activated.connect(func(): bleed_seam.visible = true)
 	GameState.snap_created.connect(func(a, b): _update_ui("SNAP %d → %d" % [a, b]))
@@ -72,17 +81,30 @@ func _setup_compositor() -> void:
 	var shader := load("res://shaders/domain_warp_compositor.gdshader") as Shader
 	if shader == null:
 		return
+	# Both layer viewports render the same graph world (own_world_3d off) through
+	# cameras with the Necropolis / Vesper environments, at the window's size.
+	# With their own empty worlds the compositor painted over the graph and the
+	# player could not see anything to SNAP.
+	_fit_layer_viewports()
+	get_viewport().size_changed.connect(_fit_layer_viewports)
 	compositor_mat = ShaderMaterial.new()
 	compositor_mat.shader = shader
-	var tex0 := ViewportTexture.new()
-	tex0.viewport_path = sv_l0.get_path()
-	var tex1 := ViewportTexture.new()
-	tex1.viewport_path = sv_l1.get_path()
+	# A ViewportTexture built with viewport_path at runtime never binds to its
+	# SubViewport, so the shader sampled the missing-texture fallback (solid
+	# magenta). get_texture() returns the bound render target.
+	var tex0: ViewportTexture = sv_l0.get_texture()
+	var tex1: ViewportTexture = sv_l1.get_texture()
 	compositor_mat.set_shader_parameter("layer0_tex", tex0)
 	compositor_mat.set_shader_parameter("layer1_tex", tex1)
 	compositor_mat.set_shader_parameter("bleed_intensity", 0.12 + GameState.get_district().threat * 0.1)
 	compositor_mat.set_shader_parameter("violet_seam", Color(0.82, 0.35, 1.0))
 	compositor_rect.material = compositor_mat
+
+func _fit_layer_viewports() -> void:
+	var sz := Vector2i(get_viewport().get_visible_rect().size)
+	if sz.x > 0 and sz.y > 0:
+		sv_l0.size = sz
+		sv_l1.size = sz
 
 func _set_bleed(amount: float) -> void:
 	if compositor_mat:
@@ -101,11 +123,12 @@ func _apply_atmosphere() -> void:
 		mat.emission = pair[1]
 		mat.emission_energy_multiplier = 2.0
 		pair[0].material_override = mat
+	# Translucent violet: at full emission the seam was an opaque white wall that
+	# hid the centre node and cut through the win panel.
 	var seam_mat := StandardMaterial3D.new()
-	seam_mat.emission_enabled = true
-	seam_mat.emission = Color(0.85, 0.35, 1.0)
-	seam_mat.emission_energy_multiplier = 8.0
 	seam_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	seam_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	seam_mat.albedo_color = Color(0.85, 0.35, 1.0, 0.3)
 	bleed_seam.material_override = seam_mat
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -166,7 +189,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		_update_all()
 		_update_ui("Reset.")
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		_try_select_node()
+		_try_select_node(event.position)
 
 func _save_run() -> void:
 	var data := {"current_room": GameState.current_room, "current_kernel": GameState.current_kernel, "rooms_completed": GameState.rooms_completed, "scanned": GameState.scanned, "gate_is_open": GameState.gate_is_open, "edges": GameState.edges.duplicate(true), "history": GameState.history.duplicate(true), "nodes_locked": [], "last_path": GameState.last_path_nodes.duplicate()}
@@ -187,22 +210,44 @@ func _load_run() -> void:
 	if typeof(data) != TYPE_DICTIONARY:
 		return
 	GameState.go_to_room(int(data.get("current_room", 1)))
-	GameState.current_kernel = int(data.get("current_kernel", 0))
+	GameState.set_kernel(int(data.get("current_kernel", 0)))
 	GameState.rooms_completed = int(data.get("rooms_completed", 0))
 	GameState.scanned = bool(data.get("scanned", false))
 	GameState.gate_is_open = bool(data.get("gate_is_open", false))
-	GameState.edges = data.get("edges", [])
-	GameState.history = data.get("history", [])
-	GameState.last_path_nodes = data.get("last_path", [])
-	var locked: Array = data.get("nodes_locked", [])
+	# JSON gives untyped arrays and float numbers; GameState's arrays are typed
+	# Array[Dictionary] and the graph code compares integer ids.
+	var edges: Array[Dictionary] = []
+	for e in data.get("edges", []):
+		if typeof(e) == TYPE_DICTIONARY:
+			edges.append({"from": int(e.get("from", 0)), "to": int(e.get("to", 0)), "strength": float(e.get("strength", 1.0)), "corrupted": bool(e.get("corrupted", false))})
+	GameState.edges = edges
+	var hist: Array[Dictionary] = []
+	for r in data.get("history", []):
+		if typeof(r) == TYPE_DICTIONARY:
+			hist.append({"frame": int(r.get("frame", 0)), "seq": int(r.get("seq", 0)), "priority": int(r.get("priority", 0)), "op": str(r.get("op", "")), "node": int(r.get("node", -1)), "edge": int(r.get("edge", -1)), "payload": []})
+	GameState.history = hist
+	GameState.snap_count = edges.size()
+	GameState.last_path_nodes = []
+	for id in data.get("last_path", []):
+		GameState.last_path_nodes.append(int(id))
+	var locked: Array = []
+	for id in data.get("nodes_locked", []):
+		locked.append(int(id))
 	for n in GameState.nodes:
 		n.locked = n.id in locked
 		n.revealed = GameState.scanned
+	GameState.auditor_active = not locked.is_empty()
+	if GameState.gate_is_open and GameState.nodes.size() > 3 and not str(GameState.nodes[3].label).ends_with("_OPEN"):
+		GameState.nodes[3]["label"] = str(GameState.nodes[3].label) + "_OPEN"
+	selected_node = -1
 	demo_complete = GameState.gate_is_open
+	auditor_mesh.visible = GameState.auditor_active
 	sable_mesh.visible = GameState.gate_is_open
 	win_panel.visible = GameState.gate_is_open
+	bleed_seam.visible = GameState.scanned
 	GameState.graph_changed.emit()
 	_update_all()
+	history_label.text = "History:\n" + GameState.get_history_summary()
 	_update_ui("Loaded.")
 
 func _do_scan() -> void:
@@ -215,15 +260,15 @@ func _do_scan() -> void:
 		_update_ui("SCAN | Threat %d%%" % int(GameState.get_district().threat * 100))
 		_update_objective()
 
-func _try_select_node() -> void:
+func _try_select_node(screen_pos: Vector2) -> void:
 	if not GameState.scanned:
 		_update_ui("SCAN first.")
 		return
 	var cam := get_viewport().get_camera_3d()
 	if cam == null:
 		return
-	var from := cam.project_ray_origin(get_viewport().get_mouse_position())
-	var dir := cam.project_ray_normal(get_viewport().get_mouse_position())
+	var from := cam.project_ray_origin(screen_pos)
+	var dir := cam.project_ray_normal(screen_pos)
 	var result := get_world_3d().direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(from, from + dir * 100.0))
 	if result.is_empty():
 		return
@@ -236,9 +281,16 @@ func _try_select_node() -> void:
 		if selected_node == -1:
 			selected_node = id
 			_update_ui("Selected [%d] %s" % [id, GameState.nodes[id].label])
+			_rebuild_visuals()
 		elif selected_node != id:
-			_do_snap(selected_node, id)
+			var from_id := selected_node
 			selected_node = -1
+			_do_snap(from_id, id)
+			_rebuild_visuals()
+		else:
+			selected_node = -1
+			_update_ui("Deselected [%d]." % id)
+			_rebuild_visuals()
 
 func _do_snap(a: int, b: int) -> void:
 	GameState.begin_frame()
@@ -264,6 +316,7 @@ func _on_auditor() -> void:
 
 func _on_win() -> void:
 	demo_complete = true
+	_update_room_ui()
 	sable_mesh.visible = true
 	win_panel.visible = true
 	_set_bleed(0.75)
@@ -326,9 +379,31 @@ func _rebuild_visuals() -> void:
 			mat.emission = Color(1.0, 0.15, 0.2)
 		if str(n.label).ends_with("_OPEN"):
 			mat.emission = Color(0.3, 1.0, 0.55)
+		if n.id == selected_node:
+			mat.emission_enabled = true
+			mat.emission = Color(1.0, 0.85, 0.3)
+			mat.emission_energy_multiplier = 4.0
 		mi.material_override = mat
-		mi.position = GameState.get_node_pos(n.id)
+		mi.position = vis_pos(n.id)
 		node_container.add_child(mi)
+		# The objective names nodes by number (0 → 3); show the numbers.
+		var tag := Label3D.new()
+		var role := ""
+		if n.id == 0:
+			role = "  START"
+		elif n.id == 3:
+			role = "  GATE"
+		tag.text = "%d %s%s" % [n.id, str(n.label).trim_suffix("_OPEN").replace("_", " "), role]
+		if n.locked:
+			tag.text += "  LOCKED"
+		tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		tag.no_depth_test = true
+		tag.font_size = 40
+		tag.pixel_size = 0.006
+		tag.outline_size = 10
+		tag.modulate = Color(1.0, 0.85, 0.3) if n.id == selected_node else Color(0.92, 0.88, 1.0)
+		tag.position = Vector3(0, 0.75, 0)
+		mi.add_child(tag)
 		var body := StaticBody3D.new()
 		var col := CollisionShape3D.new()
 		var shape := SphereShape3D.new()
@@ -338,8 +413,8 @@ func _rebuild_visuals() -> void:
 		body.set_meta("node_id", n.id)
 		mi.add_child(body)
 	for e in GameState.edges:
-		var a: Vector3 = GameState.get_node_pos(e.from)
-		var b: Vector3 = GameState.get_node_pos(e.to)
+		var a: Vector3 = vis_pos(e.from)
+		var b: Vector3 = vis_pos(e.to)
 		var mi := MeshInstance3D.new()
 		var cyl := CylinderMesh.new()
 		cyl.top_radius = 0.07
@@ -352,7 +427,10 @@ func _rebuild_visuals() -> void:
 		mat.emission = Color(0.85, 0.35, 1.0)
 		mat.emission_energy_multiplier = 6.0
 		mi.material_override = mat
-		mi.position = (a + b) / 2.0
-		mi.look_at(b, Vector3.UP)
-		mi.rotate_object_local(Vector3.RIGHT, PI / 2.0)
+		# look_at needs the node in the tree; before add_child it errors and the
+		# beam stays a vertical post instead of spanning the two spheres.
 		edge_container.add_child(mi)
+		mi.position = (a + b) / 2.0
+		if a.distance_to(b) > 0.001:
+			mi.look_at(mi.global_position + (b - a), Vector3.UP if absf((b - a).normalized().y) < 0.99 else Vector3.FORWARD)
+			mi.rotate_object_local(Vector3.RIGHT, PI / 2.0)
