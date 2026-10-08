@@ -13,6 +13,8 @@ extends SceneTree
 ## Kernel pass adds keys 1 / 2 / 3: status, HUD line, selection clearing, the
 ## promised Auditor lock, F5/F9 of the kernel, pause gating, and district 1
 ## clearing under each kernel (plus Force Revert in district 5 across F9).
+## Pause gating: under PAUSED, E, SPACE, 1/2/3, N, H, F5, F9, R and a click
+## change nothing (state, board, save file, status); Esc resumes and they act.
 ## Run windowed (screenshots) or headless:
 ##   godot --path godot -s res://tools/play_driver.gd -- [--shots=/tmp/dir]
 ## Exit 0 = every check passed.
@@ -380,6 +382,67 @@ func kernel_checks() -> void:
 	ok(gs.gate_is_open, "kernel FR room 5: clears after F9 ('%s')" % status())
 	await shot("kernel_room5_fr")
 
+const SAVE_FILE := "user://coldboot_run.save"
+
+## Everything a key or click could change: game state, board, HUD and status.
+func snapshot() -> Dictionary:
+	return {
+		"room": gs.current_room, "kernel": gs.current_kernel, "scanned": gs.scanned,
+		"gate": gs.gate_is_open, "edges": JSON.stringify(gs.edges), "history": JSON.stringify(gs.history),
+		"snap_count": gs.snap_count, "frame_id": gs.frame_id, "room_step": gs.room_step,
+		"locked": str(gs.nodes.map(func(n): return n.locked)), "auditor": gs.auditor_active,
+		"walker": gs.null_walker_fired, "rooms_completed": gs.rooms_completed,
+		"selected": vs.selected_node, "history_shown": vs.history_label.visible,
+		"complete": vs.demo_complete, "win_panel": vs.win_panel.visible, "beams_and_spheres": vs.node_container.get_child_count(),
+		"hash": vs.hash_label.text, "kernel_hud": vs.kernel_label.text, "room_hud": vs.room_label.text,
+		"objective": vs.objective_label.text, "status": status(),
+		"save": FileAccess.get_file_as_string(SAVE_FILE) if FileAccess.file_exists(SAVE_FILE) else "<none>",
+	}
+
+func snapshot_diff(a: Dictionary, b: Dictionary) -> PackedStringArray:
+	var d: PackedStringArray = []
+	for k in a:
+		if a[k] != b[k]:
+			d.append("%s: %s -> %s" % [k, str(a[k]).left(60), str(b[k]).left(60)])
+	return d
+
+## While paused only Esc acts. Run mid-district with a full path, a pending
+## selection and a save that differs from the board, so each key would show.
+func pause_gating_checks(label: String) -> void:
+	var sel := 4 if gs.nodes.size() > 4 else 2
+	var other := 2
+	await click_node(sel)
+	ok(vs.selected_node == sel, "%s: node %d selected before pausing" % [label, sel])
+	var before := snapshot()
+	ok(before.save != "<none>" and before.save != JSON.stringify({}), "%s: a save file exists to guard" % label)
+	await key(KEY_ESCAPE)
+	ok(paused and vs.pause_panel.visible, "%s: Esc pauses" % label)
+	ok(vs.pause_panel.get_node("PauseLabel").text.contains("Esc to resume"), "%s: PAUSED panel says 'Esc to resume'" % label)
+	var keys := {"E": KEY_E, "SPACE": KEY_SPACE, "1": KEY_1, "2": KEY_2, "3": KEY_3, "N": KEY_N, "H": KEY_H, "F5": KEY_F5, "F9": KEY_F9, "R": KEY_R}
+	for kn in keys:
+		await key(keys[kn])
+		var diff := snapshot_diff(before, snapshot())
+		ok(diff.is_empty() and paused and vs.pause_panel.visible, "%s: %s while paused changes nothing (state, board, save, status) %s" % [label, kn, str(diff)])
+	await click_node(other)
+	var cdiff := snapshot_diff(before, snapshot())
+	ok(cdiff.is_empty() and paused, "%s: click on node %d while paused changes nothing %s" % [label, other, str(cdiff)])
+	await shot("02b_room2_paused_gated")
+	await key(KEY_ESCAPE)
+	ok(not paused and not vs.pause_panel.visible and vs.tag_layer.visible, "%s: Esc resumes" % label)
+	ok(snapshot_diff(before, snapshot()).is_empty(), "%s: board after resume is the board before pausing" % label)
+	# Keys and clicks act again.
+	await key(KEY_H)
+	ok(not vs.history_label.visible and status().begins_with("History hidden"), "%s: H works after resume ('%s')" % [label, status()])
+	await key(KEY_H)
+	ok(vs.history_label.visible, "%s: H shows History again" % label)
+	await key(KEY_E)
+	ok(status().begins_with("Already scanned"), "%s: E works after resume ('%s')" % [label, status()])
+	await click_node(sel)
+	ok(vs.selected_node == -1, "%s: click works after resume (node %d deselected)" % [label, sel])
+	await key(KEY_F5)
+	var saved: String = FileAccess.get_file_as_string(SAVE_FILE)
+	ok(status() == "Saved." and saved != before.save and JSON.parse_string(saved).edges.size() == gs.edges.size(), "%s: F5 works after resume (save now has %d edges)" % [label, gs.edges.size()])
+
 func _run() -> void:
 	print("=== Project Cold Boot play_driver (", DisplayServer.get_name(), ") ===")
 	gs = root.get_node("/root/GameState")
@@ -471,6 +534,8 @@ func _run() -> void:
 	# Second click first: readout must follow the clicks, not node numbers.
 	await snap_pair(3, 1, "room 2")
 	check_history("room 2 after load + SNAP")
+	# Pause gates every gameplay key and click; Esc resumes.
+	await pause_gating_checks("room 2 pause gating")
 	await key(KEY_SPACE)
 	ok(gs.gate_is_open, "room 2: finish after load (status '%s')" % status())
 	await key(KEY_N)

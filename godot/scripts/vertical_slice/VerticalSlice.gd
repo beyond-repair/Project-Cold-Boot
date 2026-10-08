@@ -178,10 +178,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			tag_layer.visible = not paused
 		get_tree().paused = paused
 		return
+	# While paused only Esc acts: every gameplay key and click is ignored
+	# (E, SPACE, R, 1/2/3, N, H, F5, F9, LMB) under the PAUSED panel.
+	if paused:
+		return
 	if event is InputEventKey and event.pressed:
-		# Pause gates the gameplay keys too (kernel, next district).
-		if paused and event.keycode in [KEY_1, KEY_2, KEY_3, KEY_N]:
-			return
 		match event.keycode:
 			KEY_H:
 				show_history = not show_history
@@ -215,8 +216,6 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_F9:
 				_load_run()
 				return
-	if paused:
-		return
 	if demo_complete and not event.is_action_pressed("reset_demo"):
 		return
 	if event.is_action_pressed("scan"):
