@@ -3,7 +3,7 @@
 **Date:** 2026-10-08 (America/New_York)
 **Branch:** `fix/coldboot-playtest-pass`
 **Scope:** the existing Claim-0 vertical slice (main menu, six districts, SCAN → SNAP → SUNDER, kernels, Auditor lock, Rollback timer, Null Walker, F5/F9 save). No new mechanics.
-**Status:** IN PROGRESS. Every district clears with real input events on the real scenes. Three human mouse-and-keyboard sessions (2026-10-08) found HUD, save/load, readability and kernel-message bugs (H1–H7, P1–P11, Q1–Q7), all fixed or explained below. Q8 (H, F5 and F9 under the PAUSED panel) followed from the driver. The driver now passes 347/347 headless, on Forward+ (Vulkan, software) and on GL compatibility. Hand check 4 (03:45 ET) confirmed the kernel messages and pause gating on screen; its R1–R3 readability findings are fixed and checked by the driver and by screenshots on both renderers. Hand check 5 (~04:12 ET) played district 1 with real mouse and keyboard on the fixed build and confirmed R1–R3 on screen; its one new finding (W1, seam showing through the win panel) is fixed.
+**Status:** IN PROGRESS. Every district clears with real input events on the real scenes. Three human mouse-and-keyboard sessions (2026-10-08) found HUD, save/load, readability and kernel-message bugs (H1–H7, P1–P11, Q1–Q7), all fixed or explained below. Q8 (H, F5 and F9 under the PAUSED panel) followed from the driver. The driver now passes 356/356 windowed on Forward+ (Vulkan, software) and on GL compatibility, and 352/352 headless (the four streak pixel checks need a window and are skipped there). Hand check 4 (03:45 ET) confirmed the kernel messages and pause gating on screen; its R1–R3 readability findings are fixed and checked by the driver and by screenshots on both renderers. Hand check 5 (~04:12 ET) played district 1 with real mouse and keyboard on the fixed build and confirmed R1–R3 on screen; its one new finding (W1, seam showing through the win panel) is fixed. Hand check 6 (~04:30–04:45 ET) cleared all six districts by hand at `1dcb907` with no functional failure; its three polish findings (S1–S3: translucent PAUSED panel, compositor streaks over spheres, no message on resume) are fixed and checked by the driver and by screenshots.
 
 ## How this was run
 
@@ -12,21 +12,21 @@
 # Every run uses its own empty XDG_DATA_HOME, so the F5 save starts clean.
 export XDG_DATA_HOME=$(mktemp -d)
 godot --headless --path godot -s res://tools/smoke_test.gd          # 28/28
-godot --headless --path godot -s res://tools/play_driver.gd         # 337/337
+godot --headless --path godot -s res://tools/play_driver.gd         # 352/352 (4 pixel checks skipped)
 # Windowed under Xvfb (1280x720), with screenshots.
 # Forward+ on Vulkan (Mesa lavapipe, software):
 VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json \
 godot --path godot --rendering-method forward_plus --rendering-driver vulkan \
-      --resolution 1280x720 -s res://tools/play_driver.gd -- --shots=/tmp/shots_vk  # 337/337
+      --resolution 1280x720 -s res://tools/play_driver.gd -- --shots=/tmp/shots_vk  # 356/356
 # GL compatibility (Mesa llvmpipe):
 godot --path godot --rendering-method gl_compatibility --rendering-driver opengl3 \
-      --resolution 1280x720 -s res://tools/play_driver.gd -- --shots=/tmp/shots_gl  # 337/337
+      --resolution 1280x720 -s res://tools/play_driver.gd -- --shots=/tmp/shots_gl  # 356/356
 python3 -m unittest discover -s tests                               # 5/5
 ```
 
 The headless run prints `Parameter "m" is null` from the dummy renderer's `mesh_get_surface_count`. It was already there at `fe5faf4` (783 lines on 211 checks) and grows with the number of redraws. Neither windowed run prints it. The only other error in the windowed logs is ALSA failing to open a sound device (the box has none).
 
-`godot/tools/play_driver.gd` is new. It boots `MainMenu`, presses **Enter the Manuscript**, and plays `VerticalSlice` by pushing real key and mouse events into the viewport. Clicks land on each sphere's projected screen position and go through the game's own raycast picking. It covers: click before SCAN, Esc pause and unpause, a wrong path plus SUNDER, a two-hop path through an Auditor lock, N to the next district, F5 mid-room then R then F9, the Rollback district, the Null Walker breaking a path in districts 5 and 6 (and the re-draw), and N after The Sink wrapping to district 1 with all six cleared. Since the hand playtest it also covers: SPACE with no SNAPs, SUNDER dropping a pending selection, the SNAP readout in click order, the Auditor lock message, the Rollback timer running out, R and F9 refreshing the Rollback line, the short hex log hash, each HUD fact shown once, and node tags not overlapping each other or any sphere in all six districts. Since hand playtest 2 it also covers: the log hash after F9, the status after E, H and F9, the Null Walker naming the link it took (and the locked endpoint), the 0 → 5 → 3 reroute in districts 5 and 6, History steps in order per district, the dark HUD backing, the Auditor / Sable capsules clear of spheres, tags and beams, spheres and beams drawn after the seam, no beam passing through another sphere, no tag on a beam, and nothing over the PAUSED panel. Since hand playtest 3 it also covers the kernel keys (see **Kernels** below): keys 1 / 2 / 3, the HUD kernel line, the status naming the SNAP that will lock, the lock landing on that SNAP, a kernel key dropping a pending selection, the message after the Auditor has locked and mid-district, F5 / F9 of the kernel and its log hash, 1 / 2 / 3 and N ignored while paused, R keeping the kernel, district 1 cleared under each kernel, and Force Revert in Dead Repository across F5 → R → F9. For Q8 it also checks, in district 2 with a pending selection and a save that differs from the board, that E, SPACE, 1, 2, 3, N, H, F5, F9, R and a click under the PAUSED panel change nothing (game state, board, HUD lines, status and the save file), that Esc resumes with the same board, and that H, E, a click and F5 work again after it.
+`godot/tools/play_driver.gd` is new. It boots `MainMenu`, presses **Enter the Manuscript**, and plays `VerticalSlice` by pushing real key and mouse events into the viewport. Clicks land on each sphere's projected screen position and go through the game's own raycast picking. It covers: click before SCAN, Esc pause and unpause, a wrong path plus SUNDER, a two-hop path through an Auditor lock, N to the next district, F5 mid-room then R then F9, the Rollback district, the Null Walker breaking a path in districts 5 and 6 (and the re-draw), and N after The Sink wrapping to district 1 with all six cleared. Since the hand playtest it also covers: SPACE with no SNAPs, SUNDER dropping a pending selection, the SNAP readout in click order, the Auditor lock message, the Rollback timer running out, R and F9 refreshing the Rollback line, the short hex log hash, each HUD fact shown once, and node tags not overlapping each other or any sphere in all six districts. Since hand playtest 2 it also covers: the log hash after F9, the status after E, H and F9, the Null Walker naming the link it took (and the locked endpoint), the 0 → 5 → 3 reroute in districts 5 and 6, History steps in order per district, the dark HUD backing, the Auditor / Sable capsules clear of spheres, tags and beams, spheres and beams drawn after the seam, no beam passing through another sphere, no tag on a beam, and nothing over the PAUSED panel. Since hand playtest 3 it also covers the kernel keys (see **Kernels** below): keys 1 / 2 / 3, the HUD kernel line, the status naming the SNAP that will lock, the lock landing on that SNAP, a kernel key dropping a pending selection, the message after the Auditor has locked and mid-district, F5 / F9 of the kernel and its log hash, 1 / 2 / 3 and N ignored while paused, R keeping the kernel, district 1 cleared under each kernel, and Force Revert in Dead Repository across F5 → R → F9. For Q8 it also checks, in district 2 with a pending selection and a save that differs from the board, that E, SPACE, 1, 2, 3, N, H, F5, F9, R and a click under the PAUSED panel change nothing (game state, board, HUD lines, status and the save file), that Esc resumes with the same board, and that H, E, a click and F5 work again after it. For hand check 6 it also checks that the PAUSED and win panel backings are fully opaque (alpha 1.0), that every Esc resume sets the status to `Resumed.`, and that the compositor masks its streaks off lit scene pixels; windowed, in districts 1 and 6 after SCAN, it renders a frame with the streaks forced to full strength everywhere and compares it with a normal frame: every sphere centre keeps its colour and layer hue, while an empty background pixel turns violet.
 
 ## Bugs fixed
 
@@ -154,9 +154,11 @@ Vulkan API 1.4.305 - Forward+ - Using Vulkan Device #0: Unknown - llvmpipe (LLVM
 | Original driver | `fe5faf4` | 211/211 | 211/211 |
 | Extended driver, before the Q-fixes | `fe5faf4` + driver | 308/315 (the Q1, Q5–Q7 bugs) | not run |
 | Extended driver, after the Q-fixes | `2a65f01` | 315/315 | 315/315 |
-| Driver with the Q8 pause-gating checks | this slice | 337/337 | 337/337 |
+| Driver with the Q8 pause-gating checks | `757edf6` | 337/337 | 337/337 |
+| Driver with the R1–R3 / W1 checks | `06b6391` / `1dcb907` | 346/346 (`06b6391`) | 347/347 (`1dcb907`) |
+| Driver with the S1–S3 checks | this slice | 356/356 | 356/356 |
 
-Visual differences on Forward+, compared with GL compatibility at the same frames: the image is brighter and keeps colour (spheres stay pink where GL compatibility clips them to white). The seam is about twice as bright. The capsules are about twice as visible, but still clear of spheres, tags and beams. The board, tags, HUD and panels read the same. This is the renderer's tone mapping and glow, not a regression. Fixes 3 and 5 and P7 / P8 hold on both renderers. See `docs/images/qa/room1_vulkan.png` against `docs/images/qa/room1_start.png`.
+Visual differences on Forward+, compared with GL compatibility at the same frames: the image is brighter and keeps colour (spheres stay pink where GL compatibility clips them to white). The seam is about twice as bright. The capsules are about twice as visible, but still clear of spheres, tags and beams. The board, tags, HUD and panels read the same. This is the renderer's tone mapping and glow, not a regression. Fixes 3 and 5 and P7 / P8 hold on both renderers. See `docs/images/qa/room1_vulkan.png` against `docs/images/qa/room1_start.png`. (That comparison predates R2. Since R2 both renderers keep the violet / cyan sphere hues, and the refreshed screenshots read almost the same on both.)
 
 Not covered: Vulkan on a real GPU driver. Only the software ICD was used.
 
@@ -180,8 +182,9 @@ Not covered: Vulkan on a real GPU driver. Only the software ICD was used.
 | Hand 1 (2026-10-08) | 1–4 | All cleared, 0 missed clicks. Esc, F5 / R / F9 worked. Findings H1–H7. |
 | Hand 2 (2026-10-08) | 1–6 | All six cleared by hand. F5 / R / F9, Esc and H worked. In 5 and 6 the Null Walker broke 0 – 1 (node 1 locked), rerouted via node 5. N after The Sink wrapped to district 1 with `Cleared 6`. Findings P1–P11. |
 | Hand 3 (2026-10-08, ~2:35–2:48 ET) | 1–6 | All six cleared by hand with kernel switches (Final Commit, Force Revert, Keep Drafting). Null Walker reroute via 5 in 5 and 6. F5 in 5, R, F9 restored 5. N after The Sink wrapped to district 1 with `Cleared 6`. Every P-fix confirmed on screen. Findings Q1–Q4 (plus driver findings Q5–Q7). |
+| Hand 6 (2026-10-08, ~04:30–04:45 ET) | 1–6 | All six cleared by hand at `1dcb907` with kernel keys, F5 / R / F9 in districts 2 and 5, pause gating, H, the Rollback timer and the Null Walker reroute. No functional failure. Findings S1–S3 (polish). |
 
-Screenshots: `docs/images/qa/room1_start.png`, `docs/images/qa/room3_ghost_rail_win.png`, `docs/images/qa/room6_win.png`, `docs/images/qa/room1_vulkan.png` (Forward+).
+Screenshots: `docs/images/qa/room1_start.png`, `docs/images/qa/room3_ghost_rail_win.png`, `docs/images/qa/room6_win.png`, `docs/images/qa/room1_vulkan.png` (Forward+). Refreshed after S1–S3 from the GL and Vulkan driver runs (they still showed the white spheres and the seam column from before R1–R3).
 
 ## Hand check 4 (2026-10-08, ~03:45 ET)
 
@@ -218,9 +221,33 @@ Real mouse and keyboard on the GL compatibility build at 1280×720, fresh save d
 | Clear | PASS. `SUNDER: gate open.`, `Objective complete.`, Cleared 1, History 1–4 in order, win panel with the Sable line. |
 | W1 (new) | The win panel used the default translucent grey, and the front seam line showed between its text lines. Fixed: the win panel uses the opaque PAUSED backing. Driver asserts it; GL screenshots of the district 1 and 6 win panels show it clean. |
 
+## Hand check 6 (2026-10-08, ~04:30–04:45 ET)
+
+Real mouse and keyboard on the GL compatibility build at `1dcb907`, 1280×720, fresh save directory. All six districts cleared by hand. No functional failure, crash, freeze or soft-lock.
+
+| Districts | Result |
+|-----------|--------|
+| 1–3 | District 1: kernel keys 2 then 1 before the first SNAP, each status naming the promised SNAP #2; Final Commit locked node 1 on 1 → 3 (SNAP #2, as promised); History in order; H hid and showed it; win panel opaque (the floor line passes behind it, by design); N to district 2. District 2: Force Revert, SNAP 0 → 4, F5 (Log hash `1d49e8ee`), R to district 1, F9 restored district 2 with the same hash `1d49e8ee` and the beam; paused with node 4 selected: N, SPACE, H and a click were ignored; Esc resumed the same board; 4 → 3, clear. District 3: Keep Drafting, 0 → 1 → 2 → 3, clear. |
+| 4–6 | District 4: key 2 before SCAN kept Force Revert through SCAN; ROLLBACK started at 47s and counted down; cleared at 16s; the readout was gone on clear. District 5: the Null Walker removed 0 – 1 on 1 → 3; SPACE → `Path incomplete. Link 0 to 3, then SUNDER.`; 0 → 5; F5 (`a9400a3c`), R, F9 restored hash `a9400a3c` and both beams; 5 → 3 (node 1 locked); History 1–6 in order; pause ignored SPACE and N; clear, `Cleared 5`. District 6: Null Walker on 1 → 3; the Auditor locked node 1 on 0 → 5; 5 → 3; clear, `Cleared 6`; N wrapped to Compiler Heights with `Cleared 6`. |
+
+Two tester-reported "failures" were checked and are not bugs:
+
+- **A kernel reverting on SCAN in district 3.** A scripted replay of the exact key and click sequence reproduced every hand hash (`1d49e8ee`, `fefcc33c`) and showed the kernel holds through SCAN. The tester's first key 3 did not reach the game before E.
+- **`SNAP 3 → 2`.** The replay records 2 → 3; the readout follows click order (P-fix), and the tester clicked 3 first after a missed click.
+
+Two missed clicks in district 2 worked on retry.
+
+### Polish fixes from hand check 6
+
+| # | Found | Cause | Fix and check |
+|---|-------|-------|---------------|
+| S1 | The PAUSED panel was slightly translucent: a beam behind it showed faintly through its dark interior. | The shared PAUSED / win panel `StyleBoxFlat` had a background alpha of 0.96. | Alpha 1.0 for both panels (`_style_pause_panel`). Driver: both panel styleboxes have background alpha 1.0. GL and Vulkan screenshots of PAUSED (`01d_room1_paused`, `02b_room2_paused_gated`) and the win panels show no beam through them. |
+| S2 | The compositor's thin violet background streaks were painted over the spheres; in The Sink a streak crossed sphere 6 `Unraveled Mind` and could read as a beam through it. | The compositor blended its streak over the whole composited 3D image, spheres and beams included (tags sit on a layer above it and were never affected). | The shader scales the streak by `1 - smoothstep(scene_mask_low, scene_mask_high, lit)`, where `lit` is the brightest channel of the composited scene pixel (0.1 → 0.24). The empty background is near black (< 0.08) and keeps the full streak; spheres, beams and the floor line are far brighter and get none. Driver: the shader has the mask; windowed, in districts 1 and 6 after SCAN, a frame with the streak forced on everywhere (`seam_force`, a test-only uniform, 0 in play) leaves every sphere centre's colour and hue unchanged while an empty background pixel turns violet. With the mask disabled the sphere check fails. Screenshots of district 6 after SCAN show sphere 6 and every other sphere clear. |
+| S3 | After Esc resumed from pause the status kept the old text, so nothing said the game had resumed. | The pause toggle only changed the panel, tags and tree pause. | On resume the status reads `Resumed.` (pausing is unchanged). Driver: every Esc resume expects `Resumed.`; the pause-gating "same board after resume" check now compares everything except the status, which it checks separately. |
+
 ## Still open
 
-1. **Full hand regression on the final build.** Hand check 5 covered district 1 only. A last real-input pass through all six districts (F5/F9, R, Esc, H, kernels, Null Walker) on this build is still needed before `COMPLETE — PLAYTEST VERIFIED`.
+1. **Short real-input look at S1–S3.** The full six-district hand regression is done (hand check 6, all six cleared by hand, no functional failure). Only a short real-input look at S1–S3 on the fixed build (PAUSED panel, district 6 after SCAN, `Resumed.` after Esc) remains before `COMPLETE — PLAYTEST VERIFIED`.
 2. **Puzzle depth (design call, not changed).** Any two nodes can be SNAPped, and the Auditor never locks 0 or 3, so a direct 0→3 SNAP clears every district. Constraining SNAPs would be new design.
 3. **R resets the whole run** to district 1 (by design in `reset_demo`). There is no "restart this district".
 4. **Auditor always locks node 1 on the 1 → 3 SNAP** (by design: it is the highest-scoring target there). With the Null Walker in 5 and 6, that forces the reroute via node 5. P3 now says so on screen. Q3 explains when it lands on a later SNAP.

@@ -25,6 +25,17 @@ uniform vec4 calm_rect_a = vec4(0.0);
 uniform vec4 calm_rect_b = vec4(0.0);
 uniform float calm_feather = 0.02;
 
+// The streaks belong to the background only. Where the composited scene is
+// already lit (spheres, beams, the floor line; brightest channel above
+// scene_mask_low, fully at scene_mask_high) they fade out, so no streak reads
+// as a beam through a sphere (hand check 6, S2). The empty background is
+// near black (brightest channel < 0.08) and keeps the full streak.
+uniform float scene_mask_low : hint_range(0.0, 1.0) = 0.1;
+uniform float scene_mask_high : hint_range(0.0, 1.0) = 0.24;
+// Test hook: raises the streak to full strength everywhere (0 = normal).
+// play_driver sets it to check the scene mask; the game never does.
+uniform float seam_force : hint_range(0.0, 1.0) = 0.0;
+
 float calm(vec2 uv, vec4 r) {
 	if (r.z <= 0.0 || r.w <= 0.0) {
 		return 0.0;
@@ -82,12 +93,14 @@ void fragment() {
 	float edge = smoothstep(bleed_intensity - seam_width, bleed_intensity, n)
 	           - smoothstep(bleed_intensity, bleed_intensity + seam_width, n);
 	// Sharpen and boost
-	edge = pow(edge, 0.7);
+	edge = max(pow(edge, 0.7), seam_force);
 	// Blend toward violet instead of adding 4.5x on top: on an LDR target the
 	// additive seam clipped to white contours across the whole screen.
 	float micro = value_noise(noise_uv * 3.5 + TIME * 0.3);
 	float seam_a = clamp(edge * (0.55 + 0.1 * seam_emission) * (0.8 + 0.4 * micro), 0.0, 1.0);
 	seam_a *= 1.0 - max(calm(uv, calm_rect_a), calm(uv, calm_rect_b));
+	float lit = max(base.r, max(base.g, base.b));
+	seam_a *= 1.0 - smoothstep(scene_mask_low, scene_mask_high, lit);
 	base = mix(base, violet_seam, seam_a);
 
 	COLOR = vec4(base, 1.0);

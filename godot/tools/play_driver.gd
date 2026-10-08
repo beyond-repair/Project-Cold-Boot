@@ -18,6 +18,8 @@ extends SceneTree
 ## Readability pass (hand check 4): sphere glow keeps its hue and linked
 ## spheres glow brighter, the seam is a floor line clear of the board, and the
 ## compositor seam fades behind the HUD.
+## Hand check 6 (S1-S3): PAUSED and win panels fully opaque, compositor
+## streaks off the spheres (pixel check, windowed only), 'Resumed.' on resume.
 ## Run windowed (screenshots) or headless:
 ##   godot --path godot -s res://tools/play_driver.gd -- [--shots=/tmp/dir]
 ## Exit 0 = every check passed.
@@ -248,6 +250,8 @@ func walker_room(r: int) -> void:
 	await key(KEY_E)
 	await check_tags(label + " scanned")
 	await shot("%02d_room%d_scanned" % [r, r])
+	if r == 6:
+		await streak_mask_checks(label + " scanned")
 	await snap_pair(0, 1, label)
 	await snap_pair(1, 3, label)
 	ok(gs.null_walker_fired and gs.null_walker_link == Vector2i(0, 1), "%s: Null Walker took 0 – 1 (%s)" % [label, str(gs.null_walker_link)])
@@ -358,7 +362,7 @@ func kernel_checks() -> void:
 	await key(KEY_N)
 	ok(gs.current_room == room_before, "N while paused is ignored (room %d -> %d)" % [room_before, gs.current_room])
 	await key(KEY_ESCAPE)
-	ok(not paused, "unpaused after the paused-key checks")
+	ok(not paused and status() == "Resumed.", "unpaused after the paused-key checks, status 'Resumed.' ('%s')" % status())
 	if gs.gate_is_open:
 		await key(KEY_N)
 
@@ -432,7 +436,10 @@ func pause_gating_checks(label: String) -> void:
 	await shot("02b_room2_paused_gated")
 	await key(KEY_ESCAPE)
 	ok(not paused and not vs.pause_panel.visible and vs.tag_layer.visible, "%s: Esc resumes" % label)
-	ok(snapshot_diff(before, snapshot()).is_empty(), "%s: board after resume is the board before pausing" % label)
+	var after := snapshot()
+	ok(after.status == "Resumed.", "%s: status says 'Resumed.' after Esc ('%s')" % [label, after.status])
+	after.status = before.status
+	ok(snapshot_diff(before, after).is_empty(), "%s: board after resume is the board before pausing" % label)
 	# Keys and clicks act again.
 	await key(KEY_H)
 	ok(not vs.history_label.visible and status().begins_with("History hidden"), "%s: H works after resume ('%s')" % [label, status()])
@@ -478,6 +485,48 @@ func readability_checks(label: String) -> void:
 	var back := Rect2(vs.hud_backing.position / vp, vs.hud_backing.size / vp)
 	ok(cr.size() == 2 and Rect2(cr[0].x, cr[0].y, cr[0].z, cr[0].w).grow(0.001).encloses(back), "%s: compositor seam fades behind the HUD column" % label)
 
+## S2 (hand check 6): the compositor's violet streaks draw only over the
+## background. The shader scales the streak by 1 - smoothstep(low, high, lit
+## scene). Windowed: render with the streak forced to full strength
+## everywhere (seam_force 1) and normal (0); each sphere centre must keep its
+## colour and hue, while a background pixel turns violet. Headless renders
+## nothing, so only the shader check runs there.
+func streak_mask_checks(label: String) -> void:
+	var code: String = vs.compositor_mat.shader.code
+	ok(code.contains("uniform float scene_mask_low") and code.contains("seam_a *= 1.0 - smoothstep(scene_mask_low, scene_mask_high, lit)") and vs.compositor_mat.get_shader_parameter("seam_force") in [null, 0.0], "%s: compositor masks the streaks off lit scene pixels (seam_force off in play)" % label)
+	if DisplayServer.get_name() == "headless":
+		print("SKIP: %s: streak pixel check needs a window" % label)
+		return
+	await frames(4)
+	var img0 := root.get_viewport().get_texture().get_image()
+	vs.compositor_mat.set_shader_parameter("seam_force", 1.0)
+	await frames(4)
+	var img1 := root.get_viewport().get_texture().get_image()
+	vs.compositor_mat.set_shader_parameter("seam_force", 0.0)
+	await frames(2)
+	var cam: Camera3D = root.get_viewport().get_camera_3d()
+	var vp: Vector2 = root.get_viewport().get_visible_rect().size
+	var scale: Vector2 = Vector2(img0.get_size()) / vp
+	var bad: PackedStringArray = []
+	for n in gs.nodes:
+		var p: Vector2 = cam.unproject_position(vs.vis_pos(n.id)) * scale
+		var px := Vector2i(clampi(int(p.x), 0, img0.get_width() - 1), clampi(int(p.y), 0, img0.get_height() - 1))
+		var a: Color = img0.get_pixelv(px)
+		var b: Color = img1.get_pixelv(px)
+		var d: float = max(absf(a.r - b.r), max(absf(a.g - b.g), absf(a.b - b.b)))
+		var lit: float = max(a.r, max(a.g, a.b))
+		# Necropolis spheres glow violet (red over green), Vesper cyan (blue over red).
+		var hue_ok: bool = (a.r > a.g and a.b > a.g) if n.layer == 0 else (a.b > a.r)
+		if d > 0.06 or lit < 0.3 or not hue_ok:
+			bad.append("%d %s/%s d=%.2f" % [n.id, a.to_html(false), b.to_html(false), d])
+	ok(bad.is_empty(), "%s: no streak over any sphere centre, hue kept, even with streaks forced on %s" % [label, str(bad)])
+	# A background pixel (top right, clear of the HUD, History and board) does
+	# take the forced streak, so the mask is selective, not a blanket off.
+	var bg := Vector2i(int(img0.get_width() * 0.9), int(img0.get_height() * 0.12))
+	var c0: Color = img0.get_pixelv(bg)
+	var c1: Color = img1.get_pixelv(bg)
+	ok(max(c0.r, max(c0.g, c0.b)) < 0.6 and c1.b - c0.b > 0.4 and c1.r - c0.r > 0.3, "%s: forced streak still paints the empty background (%s -> %s)" % [label, c0.to_html(false), c1.to_html(false)])
+
 func linked_glow_check(label: String) -> void:
 	var linked := -1
 	var lone := -1
@@ -520,8 +569,11 @@ func _run() -> void:
 	await key(KEY_ESCAPE)
 	ok(paused and vs.pause_panel.visible, "Esc pauses")
 	ok(not vs.tag_layer.visible and vs.pause_panel.get_index() > vs.tag_layer.get_index(), "nothing draws over the PAUSED panel (tags hidden)")
+	var psb := vs.pause_panel.get_theme_stylebox("panel") as StyleBoxFlat
+	ok(psb != null and psb.bg_color.a == 1.0, "PAUSED panel backing is fully opaque (alpha %s)" % (psb.bg_color.a if psb else -1.0))
 	await key(KEY_ESCAPE)
 	ok(not paused and not vs.pause_panel.visible and vs.tag_layer.visible, "Esc again unpauses (tags back)")
+	ok(status() == "Resumed.", "Esc resume says 'Resumed.' ('%s')" % status())
 	if paused:
 		paused = false
 
@@ -532,6 +584,7 @@ func _run() -> void:
 	var sph: MeshInstance3D = vs.node_container.get_child(0)
 	ok(sph.material_override.render_priority > seam_p, "spheres draw after the seam (priority %d > %d)" % [sph.material_override.render_priority, seam_p])
 	await readability_checks("room 1 scanned")
+	await streak_mask_checks("room 1 scanned")
 	await key(KEY_E)
 	ok(status().begins_with("Already scanned"), "second E says so ('%s')" % status())
 	await snap_pair(0, 1, "room 1")
@@ -558,7 +611,7 @@ func _run() -> void:
 	ok(gs.gate_is_open, "room 1: 0→1→3 + SUNDER opens gate (status '%s', locked=%s)" % [status(), str(gs.nodes.map(func(n): return n.locked))])
 	await shot("02_room1_win")
 	var wsb := vs.win_panel.get_theme_stylebox("panel") as StyleBoxFlat
-	ok(vs.win_panel.visible and wsb != null and wsb.bg_color.a >= 0.9, "room 1: win panel sits on an opaque backing")
+	ok(vs.win_panel.visible and wsb != null and wsb.bg_color.a == 1.0, "room 1: win panel backing is fully opaque (alpha %s)" % (wsb.bg_color.a if wsb else -1.0))
 	await key(KEY_N)
 	ok(gs.current_room == 2 and not vs.win_panel.visible, "N advances to room 2")
 	check_hud("room 2 entry")

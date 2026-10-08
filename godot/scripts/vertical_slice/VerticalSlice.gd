@@ -192,6 +192,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		if tag_layer:
 			tag_layer.visible = not paused
 		get_tree().paused = paused
+		# Say so on resume: the status line kept the pre-pause text and nothing
+		# showed the game was live again (hand check 6, S3).
+		if not paused:
+			_update_ui("Resumed.")
 		return
 	# While paused only Esc acts: every gameplay key and click is ignored
 	# (E, SPACE, R, 1/2/3, N, H, F5, F9, LMB) under the PAUSED panel.
@@ -797,7 +801,9 @@ func calm_rects() -> Array:
 
 func _style_pause_panel() -> void:
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.035, 0.012, 0.06, 0.96)
+	# Fully opaque: at 0.96 a beam behind PAUSED showed faintly through its
+	# dark interior (hand check 6, S1).
+	sb.bg_color = Color(0.035, 0.012, 0.06, 1.0)
 	sb.border_color = Color(0.62, 0.32, 0.9)
 	sb.set_border_width_all(2)
 	sb.set_corner_radius_all(4)
