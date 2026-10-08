@@ -15,6 +15,9 @@ extends SceneTree
 ## clearing under each kernel (plus Force Revert in district 5 across F9).
 ## Pause gating: under PAUSED, E, SPACE, 1/2/3, N, H, F5, F9, R and a click
 ## change nothing (state, board, save file, status); Esc resumes and they act.
+## Readability pass (hand check 4): sphere glow keeps its hue and linked
+## spheres glow brighter, the seam is a floor line clear of the board, and the
+## compositor seam fades behind the HUD.
 ## Run windowed (screenshots) or headless:
 ##   godot --path godot -s res://tools/play_driver.gd -- [--shots=/tmp/dir]
 ## Exit 0 = every check passed.
@@ -443,6 +446,52 @@ func pause_gating_checks(label: String) -> void:
 	var saved: String = FileAccess.get_file_as_string(SAVE_FILE)
 	ok(status() == "Saved." and saved != before.save and JSON.parse_string(saved).edges.size() == gs.edges.size(), "%s: F5 works after resume (save now has %d edges)" % [label, gs.edges.size()])
 
+## Hand check 4 readability (R1-R3): sphere glow keeps its hue, the seam stays
+## off the board, and the compositor seam fades behind the HUD text.
+func sphere_mat(id: int) -> StandardMaterial3D:
+	for c in vs.node_container.get_children():
+		if not c.is_queued_for_deletion() and c.position.distance_to(vs.vis_pos(id)) < 0.01:
+			return c.material_override
+	return null
+
+func readability_checks(label: String) -> void:
+	var hot: PackedStringArray = []
+	var hues := {}
+	for n in gs.nodes:
+		var m := sphere_mat(n.id)
+		if m == null:
+			continue
+		var c: Color = m.emission * m.emission_energy_multiplier
+		if m.emission_enabled and max(c.r, max(c.g, c.b)) > 1.15:
+			hot.append(str(n.id))
+		if m.emission_enabled and not n.locked and n.id != vs.selected_node:
+			hues[n.layer] = m.emission
+	ok(hot.is_empty(), "%s: no sphere glows past white (%s)" % [label, ",".join(hot)])
+	ok(hues.size() < 2 or not hues[0].is_equal_approx(hues[1]), "%s: Necropolis and Vesper spheres glow different colours" % label)
+	var max_z := -INF
+	for n in gs.nodes:
+		max_z = max(max_z, vs.vis_pos(n.id).z)
+	var aabb: AABB = vs.bleed_seam.get_aabb()
+	ok(aabb.size.y < 0.1 and vs.bleed_seam.position.z - aabb.size.z * 0.5 > max_z + 0.6, "%s: seam is a flat floor line in front of every node (z %.2f > %.2f)" % [label, vs.bleed_seam.position.z, max_z])
+	var cr: Array = vs.calm_rects()
+	var vp: Vector2 = root.get_viewport().get_visible_rect().size
+	var back := Rect2(vs.hud_backing.position / vp, vs.hud_backing.size / vp)
+	ok(cr.size() == 2 and Rect2(cr[0].x, cr[0].y, cr[0].z, cr[0].w).grow(0.001).encloses(back), "%s: compositor seam fades behind the HUD column" % label)
+
+func linked_glow_check(label: String) -> void:
+	var linked := -1
+	var lone := -1
+	for n in gs.nodes:
+		if n.locked or n.id == vs.selected_node or str(n.label).ends_with("_OPEN"):
+			continue
+		if gs.node_degree(n.id) > 0:
+			linked = n.id
+		else:
+			lone = n.id
+	if linked < 0 or lone < 0:
+		return
+	ok(sphere_mat(linked).emission_energy_multiplier > sphere_mat(lone).emission_energy_multiplier, "%s: a linked sphere (%d) glows brighter than an unlinked one (%d)" % [label, linked, lone])
+
 func _run() -> void:
 	print("=== Project Cold Boot play_driver (", DisplayServer.get_name(), ") ===")
 	gs = root.get_node("/root/GameState")
@@ -482,10 +531,14 @@ func _run() -> void:
 	await shot("01b_room1_scanned")
 	var sph: MeshInstance3D = vs.node_container.get_child(0)
 	ok(sph.material_override.render_priority > seam_p, "spheres draw after the seam (priority %d > %d)" % [sph.material_override.render_priority, seam_p])
+	await readability_checks("room 1 scanned")
 	await key(KEY_E)
 	ok(status().begins_with("Already scanned"), "second E says so ('%s')" % status())
 	await snap_pair(0, 1, "room 1")
 	ok(gs.edges.size() == 1, "room 1: click-click SNAP makes one edge (edges=%d)" % gs.edges.size())
+	await frames(2)
+	linked_glow_check("room 1 after SNAP")
+	await readability_checks("room 1 after SNAP")
 	# A pending selection must not survive SUNDER and pair with the next click.
 	await click_node(4)
 	ok(vs.selected_node == 4, "room 1: click selects node 4")

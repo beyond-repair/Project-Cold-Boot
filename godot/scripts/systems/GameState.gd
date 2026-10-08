@@ -257,6 +257,9 @@ func _reject(reason: String) -> bool:
 	mutation_log.clear()
 	return false
 
+func node_degree(id: int) -> int:
+	return _node_degree(id)
+
 func _node_degree(id: int) -> int:
 	var d := 0
 	for e in edges:

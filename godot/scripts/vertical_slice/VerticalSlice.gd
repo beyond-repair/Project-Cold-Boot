@@ -41,6 +41,13 @@ const SAVE_PATH := "user://coldboot_run.save"
 ## Spheres and beams sit this far above y=0 so the floor slab (top at y=0.1)
 ## does not bury the beams or cut the spheres in half.
 const NODE_LIFT := 0.45
+## Sphere emission: low enough that the hue survives on an LDR target.
+const SPHERE_GLOW := 0.55
+## Floor crack seam: a thin fault line across the front of the board, in front
+## of every node (node z <= 2.5) and inside the Auditor / Sable margins.
+const SEAM_SIZE := Vector3(9.0, 0.02, 0.08)
+const SEAM_POS := Vector3(0, 0.115, 3.9)
+const SPHERE_GLOW_LINKED := 1.1
 ## Screen-space clearance a beam keeps from any sphere that is not one of its
 ## two endpoints. A straight beam that would pass closer bends into a shallow
 ## arc, so it never reads as a link to that sphere. Layouts are unchanged.
@@ -161,7 +168,15 @@ func _apply_atmosphere() -> void:
 	var seam_mat := StandardMaterial3D.new()
 	seam_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	seam_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	seam_mat.albedo_color = Color(0.85, 0.35, 1.0, 0.3)
+	seam_mat.albedo_color = Color(0.85, 0.35, 1.0, 0.5)
+	# A 7-unit-tall sheet at x = 0 read as a magenta column through the board,
+	# over every centre node and near their tags (hand check 4, R3). The tear
+	# now lies flat on the floor across the front of the board, clear of
+	# every sphere, beam and tag.
+	var crack := BoxMesh.new()
+	crack.size = SEAM_SIZE
+	bleed_seam.mesh = crack
+	bleed_seam.position = SEAM_POS
 	# The seam's near end sits between the camera and the board, so on top of
 	# the spheres it washed out the centre node. Beams (priority 0) and
 	# spheres (priority 1) now draw after it and read through it.
@@ -530,18 +545,24 @@ func _rebuild_visuals() -> void:
 		mi.mesh = sphere
 		var mat := StandardMaterial3D.new()
 		mat.albedo_color = Color(0.28, 0.06, 0.38) if n.layer == 0 else Color(0.12, 0.35, 0.55)
+		# Emission stays low enough to keep its hue on an LDR target: at 3.5x
+		# every sphere clipped to the same white after SCAN (hand check 4, R2).
+		# Necropolis nodes glow violet, Vesper nodes cyan; linked nodes glow
+		# brighter than unlinked ones.
 		if n.revealed or GameState.scanned:
 			mat.emission_enabled = true
-			mat.emission = Color(0.75, 0.3, 1.0)
-			mat.emission_energy_multiplier = 3.5
+			mat.emission = Color(0.6, 0.2, 0.95) if n.layer == 0 else Color(0.15, 0.55, 1.0)
+			mat.emission_energy_multiplier = SPHERE_GLOW_LINKED if GameState.node_degree(n.id) > 0 else SPHERE_GLOW
 		if n.locked:
 			mat.emission = Color(1.0, 0.15, 0.2)
+			mat.emission_energy_multiplier = SPHERE_GLOW_LINKED
 		if str(n.label).ends_with("_OPEN"):
 			mat.emission = Color(0.3, 1.0, 0.55)
+			mat.emission_energy_multiplier = SPHERE_GLOW_LINKED
 		if n.id == selected_node:
 			mat.emission_enabled = true
 			mat.emission = Color(1.0, 0.85, 0.3)
-			mat.emission_energy_multiplier = 4.0
+			mat.emission_energy_multiplier = SPHERE_GLOW_LINKED
 		# Drawn in the transparent pass after the seam (priority -1) and the
 		# beams (0), fully opaque, so neither the seam nor a beam covers it.
 		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS
@@ -560,8 +581,10 @@ func _rebuild_visuals() -> void:
 	var beam_mat := StandardMaterial3D.new()
 	beam_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	beam_mat.emission_enabled = true
+	beam_mat.albedo_color = Color(0.8, 0.4, 1.0)
 	beam_mat.emission = Color(0.85, 0.35, 1.0)
-	beam_mat.emission_energy_multiplier = 6.0
+	# At 6x the beams clipped to white; 1.4x keeps them violet.
+	beam_mat.emission_energy_multiplier = 1.4
 	# Over the seam, under the spheres.
 	beam_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS
 	beam_mat.render_priority = 0
@@ -720,7 +743,7 @@ func _setup_hud_backing() -> void:
 	if sb == null:
 		sb = StyleBoxFlat.new()
 		sb.bg_color = Color(0.035, 0.012, 0.06, 0.78)
-	sb.bg_color.a = 0.86
+	sb.bg_color.a = 0.95
 	hud_backing.add_theme_stylebox_override("panel", sb)
 	var ui := status_label.get_parent()
 	ui.add_child(hud_backing)
@@ -745,6 +768,32 @@ func _fit_hud_backing() -> void:
 	hud_backing.visible = not first
 	hud_backing.position = (r.position - Vector2(8, 5)).round()
 	hud_backing.size = (r.size + Vector2(20, 10)).round()
+	_fit_calm_rects()
+
+## The compositor fades its violet seam behind the HUD column and History
+## panel, so streaks never run through the text (hand check 4, R1).
+func _fit_calm_rects() -> void:
+	if compositor_mat == null:
+		return
+	var vp := get_viewport().get_visible_rect().size
+	if vp.x <= 0.0 or vp.y <= 0.0:
+		return
+	var rects: Array[Rect2] = []
+	if hud_backing and hud_backing.visible:
+		rects.append(Rect2(hud_backing.position, hud_backing.size))
+	if history_label.visible and not history_label.text.is_empty():
+		rects.append(Rect2(history_label.position, history_label.get_minimum_size()))
+	for i in 2:
+		var v := Vector4.ZERO
+		if i < rects.size():
+			var g := rects[i].grow(6.0)
+			v = Vector4(g.position.x / vp.x, g.position.y / vp.y, g.size.x / vp.x, g.size.y / vp.y)
+		compositor_mat.set_shader_parameter("calm_rect_a" if i == 0 else "calm_rect_b", v)
+
+func calm_rects() -> Array:
+	if compositor_mat == null:
+		return []
+	return [compositor_mat.get_shader_parameter("calm_rect_a"), compositor_mat.get_shader_parameter("calm_rect_b")]
 
 func _style_pause_panel() -> void:
 	var sb := StyleBoxFlat.new()

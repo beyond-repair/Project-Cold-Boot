@@ -19,6 +19,23 @@ uniform float seam_emission : hint_range(0.0, 10.0) = 4.5;
 // Vertical stretch makes the seam read as lightning
 uniform vec2 stretch = vec2(1.2, 9.5);
 
+// Screen rects (x, y, w, h in UV) behind the HUD text column and the History
+// panel. The seam fades out inside them so no violet streak runs through text.
+uniform vec4 calm_rect_a = vec4(0.0);
+uniform vec4 calm_rect_b = vec4(0.0);
+uniform float calm_feather = 0.02;
+
+float calm(vec2 uv, vec4 r) {
+	if (r.z <= 0.0 || r.w <= 0.0) {
+		return 0.0;
+	}
+	vec2 lo = r.xy - vec2(calm_feather);
+	vec2 hi = r.xy + r.zw + vec2(calm_feather);
+	vec2 a = smoothstep(lo, r.xy, uv);
+	vec2 b = 1.0 - smoothstep(r.xy + r.zw, hi, uv);
+	return a.x * a.y * b.x * b.y;
+}
+
 float hash(vec2 p) {
 	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
 }
@@ -70,6 +87,7 @@ void fragment() {
 	// additive seam clipped to white contours across the whole screen.
 	float micro = value_noise(noise_uv * 3.5 + TIME * 0.3);
 	float seam_a = clamp(edge * (0.55 + 0.1 * seam_emission) * (0.8 + 0.4 * micro), 0.0, 1.0);
+	seam_a *= 1.0 - max(calm(uv, calm_rect_a), calm(uv, calm_rect_b));
 	base = mix(base, violet_seam, seam_a);
 
 	COLOR = vec4(base, 1.0);
