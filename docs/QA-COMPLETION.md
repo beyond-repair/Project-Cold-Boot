@@ -3,22 +3,30 @@
 **Date:** 2026-10-08 (America/New_York)
 **Branch:** `fix/coldboot-playtest-pass`
 **Scope:** the existing Claim-0 vertical slice (main menu, six districts, SCAN → SNAP → SUNDER, kernels, Auditor lock, Rollback timer, Null Walker, F5/F9 save). No new mechanics.
-**Status:** IN PROGRESS. Every district clears with real input events on the real scenes. Two human mouse-and-keyboard sessions (2026-10-08) found HUD, save/load and readability bugs (H1–H7, then P1–P11), all fixed below. Still open: a short third human pass to confirm the P-fixes on screen, and a Vulkan (Forward+) render check.
+**Status:** IN PROGRESS. Every district clears with real input events on the real scenes. Three human mouse-and-keyboard sessions (2026-10-08) found HUD, save/load, readability and kernel-message bugs (H1–H7, P1–P11, Q1–Q7), all fixed or explained below. The driver now passes 315/315 headless, on Forward+ (Vulkan, software) and on GL compatibility. Still open: a short hand check of the kernel-message and pause-gating fixes on screen.
 
 ## How this was run
 
 ```bash
-# Godot 4.2.2 (project target). 4.7.2 passed the earlier 47-check driver; not re-run for the hand-playtest slice.
+# Godot 4.2.2 (project target). 4.7.2 passed the earlier 47-check driver; not re-run for the hand-playtest slices.
+# Every run uses its own empty XDG_DATA_HOME, so the F5 save starts clean.
+export XDG_DATA_HOME=$(mktemp -d)
 godot --headless --path godot -s res://tools/smoke_test.gd          # 28/28
-godot --headless --path godot -s res://tools/play_driver.gd         # 211/211
-# Windowed on the real renderer, with screenshots (this box has no Vulkan,
-# so it uses the GL compatibility renderer on Mesa llvmpipe):
+godot --headless --path godot -s res://tools/play_driver.gd         # 315/315
+# Windowed under Xvfb (1280x720), with screenshots.
+# Forward+ on Vulkan (Mesa lavapipe, software):
+VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json \
+godot --path godot --rendering-method forward_plus --rendering-driver vulkan \
+      --resolution 1280x720 -s res://tools/play_driver.gd -- --shots=/tmp/shots_vk  # 315/315
+# GL compatibility (Mesa llvmpipe):
 godot --path godot --rendering-method gl_compatibility --rendering-driver opengl3 \
-      --resolution 1280x720 -s res://tools/play_driver.gd -- --shots=/tmp/shots   # 211/211
+      --resolution 1280x720 -s res://tools/play_driver.gd -- --shots=/tmp/shots_gl  # 315/315
 python3 -m unittest discover -s tests                               # 5/5
 ```
 
-`godot/tools/play_driver.gd` is new. It boots `MainMenu`, presses **Enter the Manuscript**, and plays `VerticalSlice` by pushing real key and mouse events into the viewport. Clicks land on each sphere's projected screen position and go through the game's own raycast picking. It covers: click before SCAN, Esc pause and unpause, a wrong path plus SUNDER, a two-hop path through an Auditor lock, N to the next district, F5 mid-room then R then F9, the Rollback district, the Null Walker breaking a path in districts 5 and 6 (and the re-draw), and N after The Sink wrapping to district 1 with all six cleared. Since the hand playtest it also covers: SPACE with no SNAPs, SUNDER dropping a pending selection, the SNAP readout in click order, the Auditor lock message, the Rollback timer running out, R and F9 refreshing the Rollback line, the short hex log hash, each HUD fact shown once, and node tags not overlapping each other or any sphere in all six districts. Since hand playtest 2 it also covers: the log hash after F9, the status after E, H and F9, the Null Walker naming the link it took (and the locked endpoint), the 0 → 5 → 3 reroute in districts 5 and 6, History steps in order per district, the dark HUD backing, the Auditor / Sable capsules clear of spheres, tags and beams, spheres and beams drawn after the seam, no beam passing through another sphere, no tag on a beam, and nothing over the PAUSED panel.
+The headless run prints `Parameter "m" is null` from the dummy renderer's `mesh_get_surface_count`. It was already there at `fe5faf4` (783 lines on 211 checks) and grows with the number of redraws. Neither windowed run prints it. The only other error in the windowed logs is ALSA failing to open a sound device (the box has none).
+
+`godot/tools/play_driver.gd` is new. It boots `MainMenu`, presses **Enter the Manuscript**, and plays `VerticalSlice` by pushing real key and mouse events into the viewport. Clicks land on each sphere's projected screen position and go through the game's own raycast picking. It covers: click before SCAN, Esc pause and unpause, a wrong path plus SUNDER, a two-hop path through an Auditor lock, N to the next district, F5 mid-room then R then F9, the Rollback district, the Null Walker breaking a path in districts 5 and 6 (and the re-draw), and N after The Sink wrapping to district 1 with all six cleared. Since the hand playtest it also covers: SPACE with no SNAPs, SUNDER dropping a pending selection, the SNAP readout in click order, the Auditor lock message, the Rollback timer running out, R and F9 refreshing the Rollback line, the short hex log hash, each HUD fact shown once, and node tags not overlapping each other or any sphere in all six districts. Since hand playtest 2 it also covers: the log hash after F9, the status after E, H and F9, the Null Walker naming the link it took (and the locked endpoint), the 0 → 5 → 3 reroute in districts 5 and 6, History steps in order per district, the dark HUD backing, the Auditor / Sable capsules clear of spheres, tags and beams, spheres and beams drawn after the seam, no beam passing through another sphere, no tag on a beam, and nothing over the PAUSED panel. Since hand playtest 3 it also covers the kernel keys (see **Kernels** below): keys 1 / 2 / 3, the HUD kernel line, the status naming the SNAP that will lock, the lock landing on that SNAP, a kernel key dropping a pending selection, the message after the Auditor has locked and mid-district, F5 / F9 of the kernel and its log hash, 1 / 2 / 3 and N ignored while paused, R keeping the kernel, district 1 cleared under each kernel, and Force Revert in Dead Repository across F5 → R → F9.
 
 ## Bugs fixed
 
@@ -80,6 +88,76 @@ By design, unchanged: the Auditor locks node 1 on the 1 → 3 SNAP in every dist
 
 Screenshots after these fixes (GL compatibility, 1280×720, driver run): `docs/images/qa/room1_start.png` (district 1 after SCAN, HUD backing, seam under node 4), `docs/images/qa/room3_ghost_rail_win.png` (Ghost Rail clear: LOCKED tag off the beams, translucent capsules), `docs/images/qa/room6_win.png` (The Sink after the Null Walker reroute 0 → 5 → 3: the 5 → 3 beam arcs clear of node 6, and the History reads 1…7).
 
+## Hand playtest 3 (2026-10-08)
+
+A person played the build on the desktop (windowed, GL compatibility, 1280×720, real mouse and keyboard, code at `fe5faf4`) from about 2:35 to 2:48 ET. They cleared all six districts by hand and switched kernels along the way:
+
+| District | Kernel | Route | What happened |
+|----------|--------|-------|---------------|
+| 1 Compiler Heights | Final Commit | 0 → 1, 1 → 3 | The Auditor locked node 1 on 1 → 3. |
+| 2 Static Market | Force Revert | 0 → 4, 4 → 3 | No lock. |
+| 3 Ghost Rail | Keep Drafting | 0 → 1 → 2 → 3 | No lock. |
+| 4 Rollback District | Keep Drafting | 0 → 4, 4 → 3 | No lock. The Rollback timer started at 47s on SCAN and read 31s at SUNDER. |
+| 5 Dead Repository | Keep Drafting | 0 → 1, 1 → 3, then 0 → 5, 5 → 3 | The Null Walker removed 0 – 1. The Auditor locked node 1 on the 5 → 3 SNAP. F5 here, R to district 1, F9 restored district 5. N to district 6. |
+| 6 The Sink | Keep Drafting | 0 → 1, 1 → 3, then 0 → 5, 5 → 3 | The Null Walker removed 0 – 1. The Auditor locked node 1 on the 0 → 5 SNAP. N wrapped to district 1 with `Cleared 6`. |
+
+They confirmed every P-fix from hand playtest 2 on screen:
+
+- The HUD backing is readable.
+- The capsules are translucent and stay in the margins.
+- Node 4 reads through the seam after SCAN. It is dim before SCAN, which is the unscanned look.
+- The arced 1 → 3 beam clearly joins 1 and 3. It passes close to the top edge of node 2.
+- No tag sits on a beam or on another tag. In districts 5 and 6 the `LOCKED` tag on node 1 is within a few pixels of the 1 → 3 beam, but not on it.
+- The PAUSED panel is opaque, tags are hidden while paused, and Esc resumes.
+- The Null Walker message reads `SNAP 1 → 3 | NULL WALKER removed link 0 – 1.`
+- After F9 the History steps are in increasing order, and the log hash is hex.
+- The SNAP arrow was always a single `→`. P5 is closed.
+
+What they reported, what the driver found while covering the kernels, and what changed:
+
+| # | Finding | Root cause | Fix |
+|---|---------|------------|-----|
+| Q1 | The kernel message (`Kernel switched: the Auditor locks a node on SNAP #N.`) gave SNAP numbers that matched nothing on screen, and promised locks that never came (Force Revert in district 2, Keep Drafting in district 3). | The number was `get_auditor_lock_threshold() + 1`. That is correct only for a district with no SNAPs yet, and only for the district on screen when the key is pressed. It ignored three things. The threshold drops by one at threat ≥ 85% (districts 1 and 6). The Auditor locks only once per district. And SNAPs already made count, so a switch mid-district promised a SNAP that was already past. Short routes also never reach the promised SNAP: district 2 under Force Revert (threat 68%) locks on SNAP #3, and the player made two. District 3 under Keep Drafting (threat 50%) locks on SNAP #4, and the player made three. | The message names the kernel and states what will actually happen in this district. Before a lock: `Kernel switched to Keep Drafting: the Auditor locks a node on SNAP #3.`, where the number is the threshold or the next SNAP, whichever is later. After a lock: `…the Auditor has already locked a node here.` With the gate open: `Kernel switched to X.` The rules are unchanged. Driver: the promised SNAP number under each kernel in district 1, the lock landing on it (or not landing before it), the message after a lock, and a mid-district switch. |
+| Q2 | `AUD_LOCK` History entries share the SNAP's step number (`4:SNAP`, `4:AUD_LOCK`, `5:SNAP`). | By design. The step is the per-district commit counter. `_do_snap` logs the SNAP and the Auditor's lock in the same frame, and `commit_frame` applies both together (the lock at priority 2, after the SNAP). So they are one commit and share one step. The next commit gets the next step. | None. Documented here. |
+| Q3 | In district 5 the lock landed on the 5 → 3 SNAP, and in district 6 on the 0 → 5 SNAP. Both times it locked node 1, which was not in that SNAP. | By design. Keep Drafting carried over from district 3. Its threshold locks on SNAP #4, or SNAP #3 at threat ≥ 85%. Dead Repository is at 82%, so it locks on SNAP #4 (0 → 1, 1 → 3, 0 → 5, 5 → 3). The Sink is at 95%, so it locks on SNAP #3 (0 → 5). SNAP numbers count SNAPs made, including the 0 – 1 link the Walker removed. `pick_auditor_lock_target` never picks 0 or 3. It scores the other nodes from the links before this SNAP: 2 per link, +3 if on the recent path, +1.5 × threat for layer 0, all × 0.75 under Keep Drafting. In district 6, node 1 (one link, on the path, layer 0) scores about 4.8 and node 5 about 1.1. In district 5, nodes 1 and 5 tie at about 4.7, and the lower id wins. | None. The message already names the node (`AUDITOR locked node 1: …`). |
+| Q4 | The kernel survives R. | By design. `reset_demo` resets the run, not the kernel, and the HUD kernel line agrees after R. | None. Driver: R keeps the kernel and the HUD line. |
+| Q5 | Driver: after a kernel switch, the log hash on the HUD was stale. F5 → R → F9 then showed a different hash from the one at F5 (`39847d58` vs `395ce7d5`). | The kernel is mixed into the log hash, but the hash was only recomputed on the next commit. | A kernel switch recomputes the hash (`GameState.refresh_hash()`) and redraws the hash line. Driver: the hash after F9 equals the hash at F5 after a switch. |
+| Q6 | Driver: 1 / 2 / 3 and N still worked under the PAUSED panel. N while paused moved to the next district. | Pause gated clicks, SCAN, SNAP and SUNDER, but not these keys. | While paused, 1 / 2 / 3 and N are ignored. Esc, H, F5 and F9 still work while paused, as before. Driver: kernel and district unchanged after 1 and N while paused. |
+| Q7 | Driver: after F9 in Dead Repository, the Auditor locked one SNAP late. | Load set the SNAP count to the number of edges. The Null Walker removes an edge but not the SNAP that made it, so the restored count was one short. | The save stores the SNAP count, and load uses it (never less than the edge count, for older saves). Driver: Force Revert in district 5, F5 → R → F9 restores the count and the lock lands on the same SNAP as without the save. |
+
+Before these fixes, the extended driver passed 308/315 on Forward+. The seven failures were Q1 (two), Q5, Q6 (two) and Q7 (two). After them, every renderer passes 315/315.
+
+Screenshots: the existing `docs/images/qa/` GL shots are unchanged (these fixes change status text and the hash line, not the board). `docs/images/qa/room1_vulkan.png` is new: district 1 after SCAN on Forward+.
+
+## Kernels
+
+Keys 1, 2 and 3 pick the kernel: **Final Commit**, **Force Revert** and **Keep Drafting**. The HUD shows it on the `Kernel:` line. A kernel changes only two things. It does not change which SNAPs are allowed or what clears a district.
+
+- **When the Auditor locks.** The Auditor locks one node per district, on a set SNAP: Final Commit on SNAP #2, Force Revert on SNAP #3, Keep Drafting on SNAP #4. At threat ≥ 85% (Compiler Heights 90%, The Sink 95%) Force Revert and Keep Drafting lock one SNAP earlier. Nothing locks before SNAP #2. SNAPs are counted per district, including links the Null Walker later removes.
+- **Which node it locks.** It never locks 0 (START) or 3 (GATE). It scores the rest by links, the recent path and layer. Final Commit adds weight for links, so it favours well-linked nodes more. Keep Drafting scales every score by 0.75, which does not change the pick, so Force Revert and Keep Drafting pick the same node.
+
+The kernel is part of the log hash. It is saved by F5 and restored by F9, and it survives R and N. Switching clears a pending selection. The status line then says which SNAP will lock in this district, or that the Auditor has already locked here. Kernel keys do nothing while paused.
+
+## Forward+ / Vulkan render check
+
+This box has no GPU. Mesa's lavapipe software Vulkan driver (`mesa-vulkan-drivers` 25.0.7, `libvulkan1` 1.4.309) was installed, and Godot was pointed at it with `VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json`. The run log confirms the real Forward+ path:
+
+```
+Vulkan devices:
+  #0: Unknown llvmpipe (LLVM 19.1.7, 256 bits) - Supported, CPU
+Vulkan API 1.4.305 - Forward+ - Using Vulkan Device #0: Unknown - llvmpipe (LLVM 19.1.7, 256 bits)
+```
+
+| Run | Code | Forward+ (Vulkan) | GL compatibility |
+|-----|------|-------------------|------------------|
+| Original driver | `fe5faf4` | 211/211 | 211/211 |
+| Extended driver, before the Q-fixes | `fe5faf4` + driver | 308/315 (the Q1, Q5–Q7 bugs) | not run |
+| Extended driver, after the Q-fixes | this slice | 315/315 | 315/315 |
+
+Visual differences on Forward+, compared with GL compatibility at the same frames: the image is brighter and keeps colour (spheres stay pink where GL compatibility clips them to white). The seam is about twice as bright. The capsules are about twice as visible, but still clear of spheres, tags and beams. The board, tags, HUD and panels read the same. This is the renderer's tone mapping and glow, not a regression. Fixes 3 and 5 and P7 / P8 hold on both renderers. See `docs/images/qa/room1_vulkan.png` against `docs/images/qa/room1_start.png`.
+
+Not covered: Vulkan on a real GPU driver. Only the software ICD was used.
+
 ## Played (scripted, real events, windowed)
 
 | District | Result |
@@ -90,6 +168,7 @@ Screenshots after these fixes (GL compatibility, 1280×720, driver run): `docs/i
 | 4 Rollback District | Rollback timer counts on the HUD (`ROLLBACK 42s`). The timer is run out: SNAPs wiped, readout restarts. F5, R (the Rollback line clears on Compiler Heights), F9 (it returns). Then cleared. |
 | 5 Dead Repository | 0→1, 1→3: Auditor locks 1, `NULL WALKER removed link 0 – 1. Node 1 is locked: route around it.`; 0–1 refused; SPACE → `Path incomplete.`; reroute 0→5→3 → clear |
 | 6 The Sink | Same as 5 → clear; N wraps to district 1, six cleared |
+| Kernels | District 1 cleared under Final Commit, Force Revert and Keep Drafting, each lock on the promised SNAP; F5 / R / F9 of the kernel with the same hash; 1 / 2 / 3 and N ignored while paused; Force Revert through to district 5, F5 / R / F9 after the Null Walker, lock on the same SNAP, clear |
 
 ## Played (by hand)
 
@@ -97,18 +176,19 @@ Screenshots after these fixes (GL compatibility, 1280×720, driver run): `docs/i
 |------|-----------|--------|
 | Hand 1 (2026-10-08) | 1–4 | All cleared, 0 missed clicks. Esc, F5 / R / F9 worked. Findings H1–H7. |
 | Hand 2 (2026-10-08) | 1–6 | All six cleared by hand. F5 / R / F9, Esc and H worked. In 5 and 6 the Null Walker broke 0 – 1 (node 1 locked), rerouted via node 5. N after The Sink wrapped to district 1 with `Cleared 6`. Findings P1–P11. |
+| Hand 3 (2026-10-08, ~2:35–2:48 ET) | 1–6 | All six cleared by hand with kernel switches (Final Commit, Force Revert, Keep Drafting). Null Walker reroute via 5 in 5 and 6. F5 in 5, R, F9 restored 5. N after The Sink wrapped to district 1 with `Cleared 6`. Every P-fix confirmed on screen. Findings Q1–Q4 (plus driver findings Q5–Q7). |
 
-Screenshots: `docs/images/qa/room1_start.png`, `docs/images/qa/room3_ghost_rail_win.png`, `docs/images/qa/room6_win.png`.
+Screenshots: `docs/images/qa/room1_start.png`, `docs/images/qa/room3_ghost_rail_win.png`, `docs/images/qa/room6_win.png`, `docs/images/qa/room1_vulkan.png` (Forward+).
 
 ## Still open
 
-1. **Third human pass (short).** A person should confirm P1–P11 on screen: the HUD backing, the translucent capsules in the margins, spheres reading through the seam, the arced beams (do they read as links between the right nodes?), tags off the beams, the pause panel, the Null Walker message, the History order after F9, and whether `⇒` (P5) ever shows again. The second pass was clean on gameplay. These are visual confirmations, checked so far only by driver screenshots.
-2. **Forward+ / Vulkan render.** This box has no Vulkan driver. Fixes 3 and 5, the tag layer, and the P7 / P8 render-priority changes were checked on the GL compatibility renderer only.
-3. **Kernel switch (1 / 2 / 3)** has not been hand-tested. The driver does not press 1 / 2 / 3 either. Only the status message and the selection clearing are covered by code review.
-4. **Puzzle depth (design call, not changed).** Any two nodes can be SNAPped, and the Auditor never locks 0 or 3, so a direct 0→3 SNAP clears every district. Constraining SNAPs would be new design.
-5. **R resets the whole run** to district 1 (by design in `reset_demo`). There is no "restart this district".
-6. **Auditor always locks node 1 on the 1 → 3 SNAP** (by design: it is the highest-scoring target there). With the Null Walker in 5 and 6, that forces the reroute via node 5. P3 now says so on screen.
-7. Volume and sensitivity sliders are not persisted between launches. There is no audio in the slice.
+1. **Short hand check of the Q-fixes.** A person should switch kernels on screen and read the new message (Q1) before a lock, after a lock and mid-district, check that the lock lands on the SNAP it names, and press 1 / 2 / 3 and N under the PAUSED panel (Q6). So far these are checked by the driver and its screenshots only.
+2. **Puzzle depth (design call, not changed).** Any two nodes can be SNAPped, and the Auditor never locks 0 or 3, so a direct 0→3 SNAP clears every district. Constraining SNAPs would be new design.
+3. **R resets the whole run** to district 1 (by design in `reset_demo`). There is no "restart this district".
+4. **Auditor always locks node 1 on the 1 → 3 SNAP** (by design: it is the highest-scoring target there). With the Null Walker in 5 and 6, that forces the reroute via node 5. P3 now says so on screen. Q3 explains when it lands on a later SNAP.
+5. Volume and sensitivity sliders are not persisted between launches. There is no audio in the slice.
+6. Vulkan on a real GPU is untested (software lavapipe only).
+7. H, F5 and F9 still work under the PAUSED panel (unchanged). F9 while paused restores the board behind the panel. Whether save / load should be gated by pause is a design call.
 
 ## Status
 
