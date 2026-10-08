@@ -73,7 +73,7 @@ func _ready() -> void:
 	GameState.validation_failed.connect(func(r): _update_ui("Reject: %s" % r))
 	GameState.demo_won.connect(_on_win)
 	GameState.room_changed.connect(_on_room_changed)
-	GameState.kernel_changed.connect(func(_n): _update_kernel_ui(); _clear_selection(); _update_ui("Kernel switched: the Auditor locks a node on SNAP #%d." % (GameState.get_auditor_lock_threshold() + 1)))
+	GameState.kernel_changed.connect(_on_kernel_changed)
 	GameState.null_walker_stirred.connect(func(m): _update_ui(m))
 	GameState.rollback_tick.connect(_on_rollback_tick)
 	win_panel.visible = false
@@ -179,6 +179,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_tree().paused = paused
 		return
 	if event is InputEventKey and event.pressed:
+		# Pause gates the gameplay keys too (kernel, next district).
+		if paused and event.keycode in [KEY_1, KEY_2, KEY_3, KEY_N]:
+			return
 		match event.keycode:
 			KEY_H:
 				show_history = not show_history
@@ -236,7 +239,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		_try_select_node(event.position)
 
 func _save_run() -> void:
-	var data := {"current_room": GameState.current_room, "current_kernel": GameState.current_kernel, "rooms_completed": GameState.rooms_completed, "scanned": GameState.scanned, "gate_is_open": GameState.gate_is_open, "edges": GameState.edges.duplicate(true), "history": GameState.history.duplicate(true), "nodes_locked": [], "last_path": GameState.last_path_nodes.duplicate(), "frame_id": GameState.frame_id, "room_step": GameState.room_step, "null_walker_fired": GameState.null_walker_fired}
+	var data := {"current_room": GameState.current_room, "current_kernel": GameState.current_kernel, "rooms_completed": GameState.rooms_completed, "scanned": GameState.scanned, "gate_is_open": GameState.gate_is_open, "edges": GameState.edges.duplicate(true), "history": GameState.history.duplicate(true), "nodes_locked": [], "last_path": GameState.last_path_nodes.duplicate(), "frame_id": GameState.frame_id, "room_step": GameState.room_step, "null_walker_fired": GameState.null_walker_fired, "snap_count": GameState.snap_count}
 	for n in GameState.nodes:
 		if n.locked: data.nodes_locked.append(n.id)
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
@@ -280,7 +283,9 @@ func _load_run() -> void:
 	GameState.room_step = maxi(int(data.get("room_step", max_step)), max_step)
 	GameState.frame_id = maxi(int(data.get("frame_id", GameState.room_step)), GameState.room_step)
 	GameState.null_walker_fired = bool(data.get("null_walker_fired", false))
-	GameState.snap_count = edges.size()
+	# The Auditor's lock threshold counts SNAPs, not edges (the Null Walker
+	# removes an edge but not the SNAP).
+	GameState.snap_count = maxi(int(data.get("snap_count", edges.size())), edges.size())
 	GameState.last_path_nodes = []
 	for id in data.get("last_path", []):
 		GameState.last_path_nodes.append(int(id))
@@ -409,6 +414,22 @@ func _walker_text() -> String:
 ## but edges it already has stay and still count for the 0 → 3 path.
 func _lock_text(id: int) -> String:
 	return "AUDITOR locked node %d: no new SNAPs to it (its links still count)." % id
+
+## Kernels only move the Auditor's lock (one per district) and its target.
+func _on_kernel_changed(kernel_name: String) -> void:
+	_update_kernel_ui()
+	_clear_selection()
+	# The kernel is part of the log hash: refresh it so the HUD (and F5 / F9)
+	# shows the hash of the state on screen.
+	GameState.refresh_hash()
+	_update_hash_ui()
+	if GameState.gate_is_open:
+		_update_ui("Kernel switched to %s." % kernel_name)
+	elif GameState.auditor_active:
+		_update_ui("Kernel switched to %s: the Auditor has already locked a node here." % kernel_name)
+	else:
+		var n := maxi(GameState.get_auditor_lock_threshold(), GameState.snap_count) + 1
+		_update_ui("Kernel switched to %s: the Auditor locks a node on SNAP #%d." % [kernel_name, n])
 
 func _on_auditor() -> void:
 	auditor_mesh.visible = true

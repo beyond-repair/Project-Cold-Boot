@@ -10,6 +10,9 @@ extends SceneTree
 ## steps in order per district, the HUD backing, translucent capsules kept off
 ## the board, spheres over the seam, beams clear of other spheres, tags off
 ## beams, and nothing over the PAUSED panel.
+## Kernel pass adds keys 1 / 2 / 3: status, HUD line, selection clearing, the
+## promised Auditor lock, F5/F9 of the kernel, pause gating, and district 1
+## clearing under each kernel (plus Force Revert in district 5 across F9).
 ## Run windowed (screenshots) or headless:
 ##   godot --path godot -s res://tools/play_driver.gd -- [--shots=/tmp/dir]
 ## Exit 0 = every check passed.
@@ -254,6 +257,129 @@ func walker_room(r: int) -> void:
 	ok(status().begins_with("Path incomplete.") and not gs.gate_is_open, "%s: broken path reads 'Path incomplete.'" % label)
 	await clear_room([0, 5, 3], label + " reroute via 5")
 
+## Keys 1 / 2 / 3 call GameState.set_kernel. A kernel changes only when the
+## Auditor locks (get_auditor_lock_threshold: it locks on SNAP #2 / #3 / #4,
+## one SNAP earlier at threat >= 85%, never before #2) and how it scores the
+## target; the kernel is also mixed into the log hash. Compiler Heights
+## (threat 90%): Final Commit #2, Force Revert #2, Keep Drafting #3.
+const KERNELS := [[KEY_1, 0, "Final Commit"], [KEY_2, 1, "Force Revert"], [KEY_3, 2, "Keep Drafting"]]
+const D1_LOCK_SNAP := {0: 2, 1: 2, 2: 3}
+
+func press_kernel(k: Array, label: String) -> void:
+	await key(k[0])
+	ok(gs.current_kernel == k[1] and gs.get_kernel_name() == k[2], "%s: key %d sets kernel %s (got %s)" % [label, k[1] + 1, k[2], gs.get_kernel_name()])
+	ok(vs.kernel_label.text == "Kernel: %s" % k[2], "%s: HUD kernel line reads 'Kernel: %s' ('%s')" % [label, k[2], vs.kernel_label.text])
+
+## The SNAP number the kernel message promises, or -1.
+func promised_snap() -> int:
+	var m := RegEx.create_from_string("locks a node on SNAP #(\\d+)").search(status())
+	return int(m.get_string(1)) if m else -1
+
+func sphere_amber(id: int) -> bool:
+	for c in vs.node_container.get_children():
+		if c.is_queued_for_deletion() or c.position.distance_to(vs.vis_pos(id)) > 0.01:
+			continue
+		var mat: StandardMaterial3D = c.material_override
+		return mat.emission_enabled and mat.emission.is_equal_approx(Color(1.0, 0.85, 0.3))
+	return false
+
+## Clear the current district with a direct 0 -> 3 SNAP, then N.
+func quick_clear(label: String) -> void:
+	if not gs.scanned:
+		await key(KEY_E)
+	await snap_pair(0, 3, label)
+	await key(KEY_SPACE)
+	ok(gs.gate_is_open, "%s: direct 0 → 3 clears under %s" % [label, gs.get_kernel_name()])
+	await key(KEY_N)
+
+func kernel_checks() -> void:
+	print("--- kernel switch (1 / 2 / 3) ---")
+	for k in KERNELS:
+		var label: String = "kernel %s room 1" % k[2]
+		var before: int = gs.current_kernel
+		await key(KEY_R)
+		ok(gs.current_room == 1 and gs.current_kernel == before and vs.kernel_label.text == "Kernel: %s" % gs.get_kernel_name(), "%s: R keeps the kernel and the HUD agrees ('%s')" % [label, vs.kernel_label.text])
+		await press_kernel(k, label)
+		var exp: int = D1_LOCK_SNAP[int(k[1])]
+		ok(status().begins_with("Kernel switched") and promised_snap() == exp, "%s: status promises the lock on SNAP #%d ('%s')" % [label, exp, status()])
+		check_hud(label + " switched")
+		await key(KEY_E)
+		await click_node(0)
+		ok(vs.selected_node == 0 and sphere_amber(0), "%s: node 0 selected (amber)" % label)
+		await key(k[0])
+		ok(vs.selected_node == -1 and not sphere_amber(0), "%s: kernel key clears a pending selection" % label)
+		ok(gs.edges.is_empty(), "%s: kernel key with a pending selection makes no SNAP" % label)
+		await snap_pair(0, 1, label)
+		ok(not gs.auditor_active, "%s: no Auditor lock on SNAP #1" % label)
+		await snap_pair(1, 3, label)
+		if exp == 2:
+			ok(gs.auditor_active and gs.nodes[1].locked and status().contains("AUDITOR locked node 1"), "%s: Auditor locks node 1 on SNAP #2, as promised ('%s')" % [label, status()])
+		else:
+			ok(not gs.auditor_active and not status().contains("AUDITOR"), "%s: no Auditor lock on SNAP #2, as promised ('%s')" % [label, status()])
+		if k[1] == 0:
+			# Auditor already locked this district: there is no further lock.
+			await key(KEY_2)
+			ok(promised_snap() == -1, "kernel switch after the Auditor locked does not promise another lock ('%s')" % status())
+			await key(KEY_1)
+		if k[1] == 2:
+			# Two SNAPs made, no lock yet: switching to Final Commit locks on the
+			# next SNAP (#3), not SNAP #2 which is already past.
+			await key(KEY_1)
+			ok(not gs.auditor_active and promised_snap() == gs.snap_count + 1, "kernel switch mid-district promises the next SNAP (#%d) ('%s')" % [gs.snap_count + 1, status()])
+			# F5 / F9 round trip of the kernel.
+			var saved_hash: String = vs.hash_label.text
+			await key(KEY_F5)
+			await key(KEY_R)
+			await key(KEY_2)
+			ok(gs.current_kernel == 1, "kernel F5/F9: Force Revert set before F9")
+			await key(KEY_F9)
+			ok(status().begins_with("Loaded.") and gs.current_kernel == 0 and vs.kernel_label.text == "Kernel: Final Commit", "kernel F5/F9: F9 restores the saved kernel (Final Commit) and the HUD ('%s' / '%s')" % [vs.kernel_label.text, status()])
+			ok(gs.current_room == 1 and gs.edges.size() == 2 and not gs.auditor_active and vs.selected_node == -1, "kernel F5/F9: board restored, no lock, no selection")
+			ok(vs.hash_label.text == saved_hash, "kernel F5/F9: log hash after F9 equals the one shown at F5 ('%s' vs '%s')" % [vs.hash_label.text, saved_hash])
+			await key(KEY_3)
+		await shot("kernel_%d_room1" % (k[1] + 1))
+		await key(KEY_SPACE)
+		ok(gs.gate_is_open and vs.win_panel.visible, "%s: district 1 clears with 0 → 1 → 3 under %s ('%s')" % [label, gs.get_kernel_name(), status()])
+		check_hud(label + " cleared")
+		await check_tags(label + " cleared")
+
+	# Pause gates gameplay keys: 1 / 2 / 3 (and N) must not act under PAUSED.
+	var k_before: int = gs.current_kernel
+	var st_before := status()
+	await key(KEY_ESCAPE)
+	await key(KEY_1)
+	ok(gs.current_kernel == k_before and status() == st_before, "kernel key while paused is ignored (kernel %s, status '%s')" % [gs.get_kernel_name(), status()])
+	var room_before: int = gs.current_room
+	await key(KEY_N)
+	ok(gs.current_room == room_before, "N while paused is ignored (room %d -> %d)" % [room_before, gs.current_room])
+	await key(KEY_ESCAPE)
+	ok(not paused, "unpaused after the paused-key checks")
+	if gs.gate_is_open:
+		await key(KEY_N)
+
+	# Force Revert in Dead Repository: the Null Walker strips 0 – 1 with no
+	# lock yet (threshold SNAP #3). F5 / F9 must keep the Auditor's timing.
+	await press_kernel(KERNELS[1], "kernel Force Revert")
+	while gs.current_room < 5:
+		await quick_clear("kernel Force Revert room %d" % gs.current_room)
+	ok(gs.current_room == 5, "kernel Force Revert: reached room 5")
+	await key(KEY_E)
+	await snap_pair(0, 1, "kernel FR room 5")
+	await snap_pair(1, 3, "kernel FR room 5")
+	ok(gs.null_walker_fired and gs.null_walker_link == Vector2i(0, 1) and not gs.auditor_active, "kernel FR room 5: Null Walker took 0 – 1, no lock yet ('%s')" % status())
+	var count_before: int = gs.snap_count
+	await key(KEY_2)
+	ok(promised_snap() == count_before + 1, "kernel FR room 5: status promises the lock on the next SNAP #%d ('%s')" % [count_before + 1, status()])
+	await key(KEY_F5)
+	await key(KEY_R)
+	await key(KEY_F9)
+	ok(gs.current_room == 5 and gs.current_kernel == 1 and gs.snap_count == count_before, "kernel FR room 5: F9 restores the SNAP count the Auditor uses (%d, saved %d)" % [gs.snap_count, count_before])
+	await snap_pair(0, 1, "kernel FR room 5 after F9")
+	ok(gs.auditor_active, "kernel FR room 5: Auditor locks on that SNAP after F9, as without the save ('%s')" % status())
+	await key(KEY_SPACE)
+	ok(gs.gate_is_open, "kernel FR room 5: clears after F9 ('%s')" % status())
+	await shot("kernel_room5_fr")
+
 func _run() -> void:
 	print("=== Project Cold Boot play_driver (", DisplayServer.get_name(), ") ===")
 	gs = root.get_node("/root/GameState")
@@ -363,6 +489,8 @@ func _run() -> void:
 		await key(KEY_N)
 	ok(gs.current_room == 1, "N after The Sink wraps to room 1")
 	ok(gs.rooms_completed >= 6, "rooms_completed counts all six (=%d)" % gs.rooms_completed)
+
+	await kernel_checks()
 
 	print("=== results: %d passed, %d failed ===" % [_pass, _fail.size()])
 	for f in _fail:
