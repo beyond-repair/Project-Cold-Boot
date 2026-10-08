@@ -3,7 +3,7 @@
 **Date:** 2026-10-08 (America/New_York)
 **Branch:** `fix/coldboot-playtest-pass`
 **Scope:** the existing Claim-0 vertical slice (main menu, six districts, SCAN → SNAP → SUNDER, kernels, Auditor lock, Rollback timer, Null Walker, F5/F9 save). No new mechanics.
-**Status:** IN PROGRESS. Every district clears with real input events on the real scenes. Three human mouse-and-keyboard sessions (2026-10-08) found HUD, save/load, readability and kernel-message bugs (H1–H7, P1–P11, Q1–Q7), all fixed or explained below. Q8 (H, F5 and F9 under the PAUSED panel) followed from the driver. The driver now passes 337/337 headless, on Forward+ (Vulkan, software) and on GL compatibility. Still open: a short hand check of the kernel-message and pause-gating fixes on screen.
+**Status:** IN PROGRESS. Every district clears with real input events on the real scenes. Three human mouse-and-keyboard sessions (2026-10-08) found HUD, save/load, readability and kernel-message bugs (H1–H7, P1–P11, Q1–Q7), all fixed or explained below. Q8 (H, F5 and F9 under the PAUSED panel) followed from the driver. The driver now passes 337/337 headless, on Forward+ (Vulkan, software) and on GL compatibility. Hand check 4 (03:45 ET) confirmed the kernel messages and pause gating on screen. Still open: the R1–R3 readability findings from that check.
 
 ## How this was run
 
@@ -183,9 +183,24 @@ Not covered: Vulkan on a real GPU driver. Only the software ICD was used.
 
 Screenshots: `docs/images/qa/room1_start.png`, `docs/images/qa/room3_ghost_rail_win.png`, `docs/images/qa/room6_win.png`, `docs/images/qa/room1_vulkan.png` (Forward+).
 
+## Hand check 4 (2026-10-08, ~03:45 ET)
+
+Real key presses and clicks on the GL compatibility build at `99483b0`, 1280x720, fresh save folder.
+
+| Check | Result |
+|---|---|
+| Kernel keys before any SNAP (district 1, after E) | PASS. 2: `Kernel switched to Force Revert: the Auditor locks a node on SNAP #2.` 3: `…Keep Drafting: …SNAP #3.` 1: `…Final Commit: …SNAP #2.` HUD kernel line follows each key. |
+| Lock lands on the promised SNAP (Final Commit) | PASS. 0 → 1, then 1 → 3: `SNAP 1 → 3 \| AUDITOR locked node 1: no new SNAPs to it (its links still count).` on SNAP #2. |
+| Kernel key after the lock | PASS. `Kernel switched to Force Revert: the Auditor has already locked a node here.` |
+| Mid-district switch (district 2, one SNAP made) | PASS. `…Force Revert: the Auditor locks a node on SNAP #3.` |
+| Pause gating (node selected, after F5) | PASS. Under `PAUSED / Esc to resume`, E, SPACE, 1, 2, 3, N, H, F5, F9, R and a click changed no HUD line, the district, History or selection. Esc resumed with the same board; H then toggled History. |
+| Clear and N | PASS. District 1 `SUNDER: gate open.`, Cleared 1, N to `Static Market (2/6)`. |
+
+Also seen, by design or minor: node tags hide while paused (P11); F5 replaces the `Selected [2] …` status with `Saved.` while the node stays selected; the log hash is deterministic per kernel. No crash, freeze or soft-lock.
+
 ## Still open
 
-1. **Short hand check of the Q-fixes.** A person should switch kernels on screen and read the new message (Q1) before a lock, after a lock and mid-district, check that the lock lands on the SNAP it names, and press E, SPACE, R, 1 / 2 / 3, N, H, F5, F9 and click a node under the PAUSED panel (Q6, Q8), then Esc to resume. So far these are checked by the driver and its screenshots only.
+1. **Hand check 4 readability findings (not yet fixed).** R1: at district 1 entry, before any key, the HUD lines (`Press E to SCAN.`, `Log hash ---- | Edges 0`, the district line) are dim grey over bright violet streaks, a violet ring crosses `(GATE)` in the Objective line, and the HUD backing reads as nearly transparent until the first action. R2: after the first SNAP every sphere turns solid white, linked or not; only the tag border tells nodes apart. R3: a translucent magenta column runs through the centre of each district over nodes 4 and 1 and near their tags.
 2. **Puzzle depth (design call, not changed).** Any two nodes can be SNAPped, and the Auditor never locks 0 or 3, so a direct 0→3 SNAP clears every district. Constraining SNAPs would be new design.
 3. **R resets the whole run** to district 1 (by design in `reset_demo`). There is no "restart this district".
 4. **Auditor always locks node 1 on the 1 → 3 SNAP** (by design: it is the highest-scoring target there). With the Null Walker in 5 and 6, that forces the reroute via node 5. P3 now says so on screen. Q3 explains when it lands on a later SNAP.
